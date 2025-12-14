@@ -61,7 +61,6 @@ export default function ProductDetails({
 
   const productMaterialGroup = useMemo(() => {
     if (!product.materialGroup) return null;
-    // @ts-expect-error simple map
     return materialGroupTranslations[product.materialGroup] || product.materialGroup;
   }, [product.materialGroup]);
 
