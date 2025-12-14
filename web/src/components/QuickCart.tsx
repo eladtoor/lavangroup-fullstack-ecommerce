@@ -53,15 +53,19 @@ export default function QuickCart() {
 
   const mergeProductData = (product: PurchaseItem) => {
     const productDetails: Product | undefined = products.find((p: Product) => p._id === product._id);
+    const quantity = product.quantity || 1;
+    const unitPrice = product.price || productDetails?.['מחיר רגיל'] || 0;
+    const price = unitPrice * quantity;
 
     return {
       ...product,
       productId: product._id,
       image: productDetails?.תמונות || '/default-image.jpg',
-      unitPrice: product.price || productDetails?.['מחיר רגיל'] || 0,
+      unitPrice,
+      price,
       sku: product.sku || productDetails?.['מק"ט'] || 'לא זמין',
       name: product.name || productDetails?.שם || 'ללא שם',
-      quantity: product.quantity || 1,
+      quantity,
       packageSize: product.packageSize || product.quantities || 1,
       materialGroup: product.materialGroup || productDetails?.materialGroup || '',
       selectedAttributes: product.selectedAttributes || {},
