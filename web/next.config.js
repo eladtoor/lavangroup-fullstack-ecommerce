@@ -33,6 +33,10 @@ const nextConfig = {
   compiler: {
     styledComponents: true,
   },
+  // Render often installs production deps only; don't fail builds on eslint availability.
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 module.exports = nextConfig;
