@@ -56,6 +56,7 @@ export default function QuickCart() {
 
     return {
       ...product,
+      productId: product._id,
       image: productDetails?.תמונות || '/default-image.jpg',
       unitPrice: product.price || productDetails?.['מחיר רגיל'] || 0,
       sku: product.sku || productDetails?.['מק"ט'] || 'לא זמין',
