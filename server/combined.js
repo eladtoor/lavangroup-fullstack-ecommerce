@@ -113,7 +113,7 @@ async function start() {
   await nextApp.prepare();
 
   // Everything else -> Next
-  app.all("*", (req, res) => handle(req, res));
+  app.get("/*", (req, res) => handle(req, res));
 
   // ---- WebSocket (copied from server.js) ----
   const broadcastProductsUpdate = async () => {
