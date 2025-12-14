@@ -315,7 +315,7 @@ export default function NavBar() {
               </Link>
 
             <div className="text-2xl font-bold text-center text-gray-800 border-b-2 border-gray-300 pb-4">
-              {categories?.companyName || 'טמבור'}
+              {companyName}
             </div>
 
             <div className="border-b border-gray-200 pb-4">
