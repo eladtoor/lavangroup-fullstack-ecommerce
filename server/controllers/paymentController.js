@@ -4,6 +4,8 @@ const createPayment = async (req, res) => {
   try {
     const requestData = req.body; // קבלת הנתונים מה-Frontend
 
+    console.log("📤 Sending payment request to iCredit:", JSON.stringify(requestData, null, 2));
+
     const response = await fetch(
       "https://icredit.rivhit.co.il/API/PaymentPageRequest.svc/GetUrl",
       {
@@ -15,7 +17,40 @@ const createPayment = async (req, res) => {
       }
     );
 
-    const data = await response.json();
+    const contentType = response.headers.get("content-type");
+    const responseText = await response.text();
+
+    console.log("📥 iCredit response content-type:", contentType);
+    console.log("📥 iCredit response body:", responseText);
+
+    let data;
+
+    // Check if response is JSON or XML
+    if (contentType && contentType.includes("application/json")) {
+      data = JSON.parse(responseText);
+    } else if (contentType && (contentType.includes("xml") || contentType.includes("text/html"))) {
+      // Handle XML response (likely an error from iCredit)
+      console.error("❌ Received XML/HTML response instead of JSON:", responseText);
+      return res.status(400).json({
+        success: false,
+        error: "תגובה לא תקינה משרת התשלום",
+        details: "iCredit returned XML instead of JSON. Check request format and credentials.",
+        rawResponse: responseText.substring(0, 500), // First 500 chars for debugging
+      });
+    } else {
+      // Try to parse as JSON anyway
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("❌ Failed to parse response:", responseText);
+        return res.status(500).json({
+          success: false,
+          error: "תגובה לא תקינה משרת התשלום",
+          details: parseError.message,
+          rawResponse: responseText.substring(0, 500),
+        });
+      }
+    }
 
     if (data.Status === 0 && data.URL) {
       res.json({

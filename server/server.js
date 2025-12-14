@@ -18,6 +18,7 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const emailRoutes = require("./routes/emailRoutes");
 const categoryImagesRoutes = require("./routes/categoryImagesRoutes");
 const siteStatsRoutes = require("./routes/siteStatsRoutes");
+const imageProxyRoutes = require("./routes/imageProxyRoutes");
 
 const app = express();
 const server = http.createServer(app);
@@ -95,6 +96,7 @@ app.use("/api/materialGroups", materialGroupRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/category-images", categoryImagesRoutes);
+app.use("/api/images", imageProxyRoutes);
 
 app.use("/api/site-stats", siteStatsRoutes);
 
@@ -106,18 +108,17 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(
-  express.static(path.join(__dirname, "../web/build"), {
-    dotfiles: "ignore",
-  })
-);
-app.get("*", (req, res, next) => {
-  if (req.path.includes(".")) {
-    return next(); // בקשות לקבצים מוסתרים או סטטיים → לא מגיב
-  }
-
-  res.sendFile(path.join(__dirname, "../web/build", "index.html"));
-});
+// app.use(
+//   express.static(path.join(__dirname, "../web/build"), {
+//     dotfiles: "ignore",
+//   })
+// );
+// app.get("*", (req, res, next) => {
+//   if (req.path.includes("api")) {
+//     return next();
+//   }
+//   res.send("API Server Running");
+// });
 
 app.get("/", (req, res) => {
   res.send("🟢 Server is running");

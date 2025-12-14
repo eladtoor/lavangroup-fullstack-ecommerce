@@ -1,0 +1,261 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hide Google Translate toolbar and elements */
+#google_translate_element {
+  display: none !important;
+}
+
+.goog-te-banner-frame,
+.goog-te-balloon-frame,
+body > .skiptranslate {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}
+
+.goog-te-menu-frame {
+  max-width: 100%;
+}
+
+/* Fix layout shifts from Google Translate */
+#goog-gt-tt,
+.goog-te-spinner-pos {
+  display: none !important;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  overflow-x: hidden;
+  top: 0 !important; /* Override Google Translate top offset */
+  background: #ffffff; /* Clean white background */
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Fade-in animation for sections */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Apply animations */
+section {
+  animation: fadeInUp 0.8s ease-out;
+}
+
+/* Glass morphism utility */
+.glass {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* RTL Support */
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* React Toastify RTL Support */
+.Toastify__toast-container--rtl {
+  direction: rtl;
+}
+
+/* Accessibility Button Customization - Enable.co.il widget */
+/* Custom position - matches BUTTON_POSITION in AccessibilityWidget.tsx */
+.access_icon,
+#access_icon,
+#accessible-icon,
+.accessible-icon,
+[class*="access-icon"],
+[id*="access-icon"],
+div[style*="position: fixed"][style*="bottom"],
+iframe[title*="accessibility"],
+iframe[title*="נגישות"] {
+  position: fixed !important;
+  top: 120px !important;
+  right: 15px !important;
+  bottom: auto !important;
+  left: auto !important;
+  width: 70px !important;
+  height: 70px !important;
+  min-width: 70px !important;
+  min-height: 70px !important;
+  z-index: 999999 !important;
+  transform: none !important;
+}
+
+/* Accessibility Button Icon and Images */
+.access_icon img,
+#access_icon img,
+.access_icon svg,
+#access_icon svg {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+/* GTranslate Widget Styling */
+.gtranslate_wrapper {
+  z-index: 99999 !important;
+  position: relative;
+}
+
+/* Make flags dropdown appear below and to the left of the globe icon */
+.gtranslate_wrapper .gt_float_switcher,
+.gtranslate_wrapper .gt-dropdown,
+.gtranslate_wrapper > div > div {
+  top: 100% !important;
+  bottom: auto !important;
+  margin-top: 8px !important;
+  right: 0 !important;
+  left: auto !important;
+}
+
+/* Ensure the dropdown content is properly positioned */
+#gt-wrapper {
+  position: relative !important;
+}
+
+.gt_float_switcher .gt_switcher_wrapper {
+  top: 100% !important;
+  bottom: auto !important;
+  right: 0 !important;
+  left: auto !important;
+}
+
+/* Carousel styles */
+.carousel .slide {
+  background: transparent !important;
+}
+
+.carousel .control-dots {
+  padding-inline-start: 0;
+}
+
+@layer components {
+  /* Custom button styles matching original Tailwind config */
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-600 text-white font-bold py-2 px-4 rounded transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary hover:bg-secondary-600 text-white font-bold py-2 px-4 rounded transition-colors;
+  }
+
+  .btn-outline {
+    @apply border-2 border-primary text-primary hover:bg-primary hover:text-white font-bold py-2 px-4 rounded transition-colors;
+  }
+
+  /* Card styles */
+  .card {
+    @apply bg-white rounded-lg shadow-md p-6;
+  }
+
+  /* Modal styles */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50;
+  }
+
+  .modal-content {
+    @apply bg-white rounded-lg p-6 max-w-md w-full mx-4;
+  }
+
+  /* Table styles */
+  .table-container {
+    @apply overflow-x-auto;
+  }
+
+  .table {
+    @apply min-w-full divide-y divide-gray-200;
+  }
+
+  .table thead {
+    @apply bg-gray-50;
+  }
+
+  .table th {
+    @apply px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider;
+  }
+
+  .table td {
+    @apply px-6 py-4 whitespace-nowrap;
+  }
+}

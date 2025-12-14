@@ -8,16 +8,39 @@
 # testing
 /coverage
 
+# next.js
+/.next/
+/.next-local/
+/out/
+
 # production
 /build
 
 # misc
 .DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+*.pem
 
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# local env files
+.env*.local
+.env
+
+# deployment env files (must never be committed)
+render.env
+
+# local dumps / snapshots
+state.json
+
+# secrets
+/server/config/serviceAccountKey.json
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
