@@ -165,7 +165,8 @@ function OrderManagementContent() {
       if (paymentFilter === 'creditLine') {
         filtered = filtered.filter(order => order.isCreditLine === true);
       } else if (paymentFilter === 'online') {
-        filtered = filtered.filter(order => !order.isCreditLine || order.isCreditLine === false);
+        // Treat anything that is NOT explicitly credit-line as "online"
+        filtered = filtered.filter(order => order.isCreditLine !== true);
       }
     }
 
