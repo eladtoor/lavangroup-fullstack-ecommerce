@@ -6,11 +6,22 @@ export default function FloatingActionButtons() {
   const [accessibilityButton, setAccessibilityButton] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
+    const findAccessibilityButton = (): HTMLElement | null => {
+      const candidates: Array<Element | null> = [
+        document.querySelector('.access_icon'),
+        document.querySelector('#access_icon'),
+        document.querySelector('[class*="access"]'),
+      ];
+
+      for (const el of candidates) {
+        if (el instanceof HTMLElement) return el;
+      }
+      return null;
+    };
+
     // Function to move accessibility button to our container
     const moveButtonToContainer = () => {
-      const accessButton = document.querySelector('.access_icon') ||
-                         document.querySelector('#access_icon') ||
-                         document.querySelector('[class*="access"]') as HTMLElement;
+      const accessButton = findAccessibilityButton();
       
       if (accessButton) {
         setAccessibilityButton(accessButton);
@@ -69,9 +80,7 @@ export default function FloatingActionButtons() {
 
         // Check multiple times as widget may take time to initialize
         const checkInterval = setInterval(() => {
-          const accessButton = document.querySelector('.access_icon') ||
-                             document.querySelector('#access_icon') ||
-                             document.querySelector('[class*="access"]') as HTMLElement;
+          const accessButton = findAccessibilityButton();
 
           if (accessButton) {
             clearInterval(checkInterval);
