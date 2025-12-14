@@ -7,6 +7,7 @@ import { setCartItems } from '@/lib/redux/slices/cartSlice';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { saveCartToFirestore } from '@/utils/cartUtils';
+import { Product } from '@/lib/redux/reducers/productReducer';
 
 interface PurchaseItem {
   _id: string;
@@ -51,17 +52,17 @@ export default function QuickCart() {
   };
 
   const mergeProductData = (product: PurchaseItem) => {
-    const productDetails = products.find((p: any) => p._id === product._id) || {};
+    const productDetails: Product | undefined = products.find((p: Product) => p._id === product._id);
 
     return {
       ...product,
-      image: productDetails.תמונות || '/default-image.jpg',
-      unitPrice: product.price || productDetails['מחיר רגיל'] || productDetails.מחיר || 0,
-      sku: product.sku || productDetails.sku || 'לא זמין',
-      name: product.name || productDetails.שם || 'ללא שם',
+      image: productDetails?.תמונות || '/default-image.jpg',
+      unitPrice: product.price || productDetails?.['מחיר רגיל'] || 0,
+      sku: product.sku || productDetails?.['מק"ט'] || 'לא זמין',
+      name: product.name || productDetails?.שם || 'ללא שם',
       quantity: product.quantity || 1,
       packageSize: product.packageSize || product.quantities || 1,
-      materialGroup: product.materialGroup || productDetails.materialGroup || '',
+      materialGroup: product.materialGroup || productDetails?.materialGroup || '',
       selectedAttributes: product.selectedAttributes || {},
       craneUnload: product.craneUnload !== undefined ? product.craneUnload : null,
       cartItemId: `${product._id}-${Date.now()}`,
