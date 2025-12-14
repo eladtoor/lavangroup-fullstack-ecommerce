@@ -23,6 +23,17 @@ function UserManagementContent() {
   const dispatch = useAppDispatch();
   const products = useAppSelector((state) => state.products.products);
 
+  type UserDoc = {
+    id: string;
+    isCreditLine?: boolean;
+    referredBy?: string;
+    isAdmin?: boolean;
+    userType?: string;
+    productDiscounts?: any[];
+    referralCount?: number;
+    [key: string]: any;
+  };
+
   const [users, setUsers] = useState<any[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -42,7 +53,10 @@ function UserManagementContent() {
       try {
         const usersCollection = collection(db, 'users');
         const userDocs = await getDocs(usersCollection);
-        const usersData = userDocs.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const usersData: UserDoc[] = userDocs.docs.map((snap) => ({
+          id: snap.id,
+          ...(snap.data() as Record<string, any>),
+        }));
 
         // Ensure isCreditLine field exists
         usersData.forEach(async (user) => {
