@@ -281,6 +281,7 @@ export default function ProductDetails({
 
     const cleanCartItem = {
       _id: product._id,
+      productId: product._id,
       sku: product['מק"ט'] || '',
       name: fullProductName,
       baseName: product.שם,
