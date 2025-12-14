@@ -254,7 +254,7 @@ function OrderManagementContent() {
       completed: orders.filter(o => o.status === 'completed').length,
       cancelled: orders.filter(o => o.status === 'cancelled').length,
       creditLine: orders.filter(o => o.isCreditLine === true).length,
-      online: orders.filter(o => !o.isCreditLine || o.isCreditLine === false).length,
+      online: orders.filter(o => o.isCreditLine !== true).length,
     };
   };
 
