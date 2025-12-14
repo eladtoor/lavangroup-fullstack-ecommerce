@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { User, Mail, Phone, MapPin, Building2, Home, Hash, DoorOpen, Crown, Link as LinkIcon, Edit3, Save, X, Check } from 'lucide-react';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { useAppSelector, useAppDispatch } from '@/lib/redux/hooks';
-import { setUser } from '@/lib/redux/slices/userSlice';
+import { setUser, type User as AppUser } from '@/lib/redux/slices/userSlice';
 import { fetchUserDataFromFirestore, updateUserDataInFirestore } from '@/utils/userUtils';
 
 export default function UserProfile() {
@@ -26,9 +26,14 @@ export default function UserProfile() {
           const userId = user?.uid || storedUser.uid;
           const userData = await fetchUserDataFromFirestore(userId);
           if (userData) {
-            dispatch(setUser(userData));
-            localStorage.setItem('user', JSON.stringify(userData));
-            setFormData(userData);
+            const normalizedUser: AppUser = {
+              ...(userData as Record<string, any>),
+              uid: userId,
+              email: (userData as any)?.email ?? storedUser?.email ?? null,
+            };
+            dispatch(setUser(normalizedUser));
+            localStorage.setItem('user', JSON.stringify(normalizedUser));
+            setFormData(normalizedUser);
           }
         }
       } catch (error) {
@@ -85,8 +90,14 @@ export default function UserProfile() {
 
     try {
       await updateUserDataInFirestore(currentUser.uid, formData);
-      dispatch(setUser(formData));
-      localStorage.setItem('user', JSON.stringify(formData));
+      const updatedUser: AppUser = {
+        ...(formData as Record<string, any>),
+        uid: currentUser.uid,
+        email: (formData as any)?.email ?? currentUser?.email ?? null,
+      };
+      dispatch(setUser(updatedUser));
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setFormData(updatedUser);
       setIsEditing(false);
       alert('הנתונים נשמרו בהצלחה.');
     } catch (error) {
