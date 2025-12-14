@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { fetchCategoryMap, printCategoryMap, generateSlugMapCode } from '@/lib/category-mapper';
 
+// Force dynamic rendering for this API route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * API Route to fetch and display category map
  * 
