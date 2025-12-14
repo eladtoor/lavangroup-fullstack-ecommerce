@@ -115,25 +115,7 @@ export const categorySlugMap: Record<string, string> = {
   'ציפויי רצפה': 'floor-coatings',
   'צבעים וחומרי גמר': 'paints-and-finishing-materials',
   'חומרים לבניה': 'building-materials',
-  'חומרי הכנה': 'preparation-materials', // For "חומרי הכנה ומילוי" subcategories
-  'חומרי מילוי': 'filling-materials', // Filling materials
-  'חומרי הכנה ומילוי': 'preparation-and-filling-materials', // Main category, but also used as subcategory name
-  'חומרי איטום': 'sealing-materials',
   'צבעים סינתטיים': 'synthetic-paints',
-  
-  // Sub-Categories for "אביזרים לצביעה ושיפוץ"
-  'אביזרים': 'accessories',
-  'מאלג\'ים': 'trowels',
-  
-  // Sub-Categories for "צבעי תעשיה"
-  'פתרונות תעשיתיים לעץ': 'industrial-wood-solutions',
-  'סימון כבישים': 'road-marking',
-  'אחזקה קלה': 'light-maintenance',
-  'אחזקה כבדה ואניות': 'heavy-maintenance-and-ships',
-  'ציפויי רצפות': 'floor-coatings',
-  'תעופה צבאית': 'military-aviation',
-  'אבקות אלקטרוסטטיות': 'electrostatic-powders',
-  'הגנה מאש': 'fire-protection',
 };
 
 /**
