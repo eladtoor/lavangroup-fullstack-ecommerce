@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteField, getDoc, setDoc } from 'firebase/firestore';
 import { useAppSelector, useAppDispatch } from '@/lib/redux/hooks';
 import { fetchProducts } from '@/lib/redux/actions/productActions';
 import RoleProtectedRoute from '@/components/RoleProtectedRoute';
@@ -62,7 +62,7 @@ function UserManagementContent() {
         usersData.forEach(async (user) => {
           if (user.isCreditLine === undefined) {
             const userRef = doc(db, 'users', user.id);
-            await updateDoc(userRef, { isCreditLine: false });
+            await setDoc(userRef, { isCreditLine: false }, { merge: true });
           }
         });
 
@@ -83,7 +83,7 @@ function UserManagementContent() {
         for (const agentId of Object.keys(counts)) {
           try {
             const agentRef = doc(db, 'users', agentId);
-            await updateDoc(agentRef, { referralCount: counts[agentId] });
+            await setDoc(agentRef, { referralCount: counts[agentId] }, { merge: true });
           } catch (error) {
             console.error(`Error updating agent ${agentId}:`, error);
           }
@@ -95,12 +95,13 @@ function UserManagementContent() {
 
     fetchUsers();
 
-    // Fetch WhatsApp settings
+    // Fetch WhatsApp settings from Firestore
     const fetchWhatsAppDetails = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp-settings`);
-        if (response.ok) {
-          const data = await response.json();
+        const docRef = doc(db, 'whatsapp', 'whatsapp-settings');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
           setWhatsappNumber(data.whatsappNumber || '');
           setWhatsappMessage(data.whatsappMessage || '');
         }
@@ -185,7 +186,7 @@ function UserManagementContent() {
           referralLink: userType === 'סוכן' ? referralLink : deleteField(),
         };
 
-        await updateDoc(userRef, updateData);
+        await setDoc(userRef, updateData, { merge: true });
 
         setUsers(
           users.map((user) =>
@@ -213,11 +214,8 @@ function UserManagementContent() {
 
   const handleSaveWhatsAppDetails = async () => {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/whatsapp-settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ whatsappNumber, whatsappMessage }),
-      });
+      const docRef = doc(db, 'whatsapp', 'whatsapp-settings');
+      await setDoc(docRef, { whatsappNumber, whatsappMessage });
       alert('פרטי וואטסאפ נשמרו בהצלחה!');
     } catch (error) {
       console.error('Error saving WhatsApp details:', error);

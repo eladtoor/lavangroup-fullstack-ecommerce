@@ -301,7 +301,7 @@ export default function CartPage() {
     items.push({
       CatalogNumber: 'SUMMARY_VAT',
       Quantity: 1,
-      UnitPrice: vatAmount.toFixed(2),
+      UnitPrice: Number(vatAmount.toFixed(2)),
       Description: 'מע"מ (18%)'
     });
 
