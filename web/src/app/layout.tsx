@@ -81,11 +81,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="he" dir="rtl" className={inter.variable}>
-      <body className={inter.className}>
+      <body className={`${inter.className} flex flex-col min-h-screen`}>
         <Providers>
           <GTranslateScript />
           <NavBar />
-          <main>{children}</main>
+          <main className="flex-grow">{children}</main>
           {modal}
           <Footer />
           <FloatingWhatsAppButton />

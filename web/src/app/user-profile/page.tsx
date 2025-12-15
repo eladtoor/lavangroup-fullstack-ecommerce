@@ -3,11 +3,20 @@
 import React, { useEffect, useState } from 'react';
 import { User, Mail, Phone, MapPin, Building2, Home, Hash, DoorOpen, Crown, Link as LinkIcon, Edit3, Save, X, Check } from 'lucide-react';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import AuthGuard from '@/components/AuthGuard';
 import { useAppSelector, useAppDispatch } from '@/lib/redux/hooks';
 import { setUser, type User as AppUser } from '@/lib/redux/slices/userSlice';
 import { fetchUserDataFromFirestore, updateUserDataInFirestore } from '@/utils/userUtils';
 
 export default function UserProfile() {
+  return (
+    <AuthGuard>
+      <UserProfileContent />
+    </AuthGuard>
+  );
+}
+
+function UserProfileContent() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<any>(null);
