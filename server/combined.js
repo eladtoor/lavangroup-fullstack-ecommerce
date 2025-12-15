@@ -48,6 +48,11 @@ async function start() {
       await mongoose.connect(process.env.MONGO_URI, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
+        maxPoolSize: 10, // Limit connection pool
+        minPoolSize: 2,
+        socketTimeoutMS: 45000, // Close sockets after 45s
+        serverSelectionTimeoutMS: 10000,
+        heartbeatFrequencyMS: 10000,
       });
       console.log("✅ MongoDB connected");
       setupChangeStream();
@@ -118,10 +123,16 @@ async function start() {
   // ---- WebSocket (copied from server.js) ----
   const broadcastProductsUpdate = async () => {
     try {
-      const updatedProducts = await mongoose.model("Product").find({}).lean();
+      const updatedProducts = await mongoose.model("Product").find({}).lean().limit(1000);
+      const message = JSON.stringify({ type: "PRODUCTS_UPDATED", payload: updatedProducts });
+      
       wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({ type: "PRODUCTS_UPDATED", payload: updatedProducts }));
+          try {
+            client.send(message);
+          } catch (err) {
+            console.error("❌ Error sending to WebSocket client:", err);
+          }
         }
       });
     } catch (error) {
@@ -154,26 +165,76 @@ async function start() {
     }
   };
 
+  let changeStreamInstance = null;
+
   const setupChangeStream = () => {
     try {
-      const productCollection = mongoose.connection.collection("products");
-      const changeStream = productCollection.watch();
+      // Close existing stream if any
+      if (changeStreamInstance) {
+        changeStreamInstance.close();
+      }
 
-      changeStream.on("change", async () => {
+      const productCollection = mongoose.connection.collection("products");
+      changeStreamInstance = productCollection.watch([], {
+        fullDocument: 'updateLookup',
+        maxAwaitTimeMS: 30000, // Prevent hanging
+      });
+
+      changeStreamInstance.on("change", async () => {
         broadcastProductsUpdate();
         broadcastCategoriesUpdate();
       });
 
-      changeStream.on("error", (error) => {
+      changeStreamInstance.on("error", (error) => {
         console.error("❌ Change Stream error:", error);
+        if (changeStreamInstance) {
+          changeStreamInstance.close();
+          changeStreamInstance = null;
+        }
+        setTimeout(setupChangeStream, 5000);
+      });
+
+      changeStreamInstance.on("close", () => {
+        console.warn("⚠️ Change Stream closed, will retry...");
+        changeStreamInstance = null;
         setTimeout(setupChangeStream, 5000);
       });
 
       console.log("🟢 Change Stream initialized.");
     } catch (error) {
       console.error("❌ Error setting up Change Stream:", error);
+      setTimeout(setupChangeStream, 5000);
     }
   };
+
+  // ---- Graceful shutdown ----
+  const gracefulShutdown = async (signal) => {
+    console.log(`\n⚠️ ${signal} received, closing gracefully...`);
+    
+    // Close change stream
+    if (changeStreamInstance) {
+      changeStreamInstance.close();
+    }
+    
+    // Close WebSocket server
+    wss.close(() => {
+      console.log('✅ WebSocket server closed');
+    });
+    
+    // Close HTTP server
+    server.close(() => {
+      console.log('✅ HTTP server closed');
+    });
+    
+    // Close MongoDB connection
+    await mongoose.connection.close();
+    console.log('✅ MongoDB connection closed');
+    
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
   // ---- listen ----
   const port = Number(process.env.PORT || 3000);

@@ -5,8 +5,8 @@
   "type": "commonjs",
   "main": "server.js",
   "scripts": {
-    "start": "node combined.js",
-    "start:api": "node server.js"
+    "start": "node --max-old-space-size=460 combined.js",
+    "start:api": "node --max-old-space-size=460 server.js"
   },
   "engines": {
     "node": ">=18"

@@ -18,6 +18,12 @@ const nextConfig = {
         hostname: '**.cloudinary.com',
       }
     ],
+    // Disable image optimization to save memory on Render free tier
+    unoptimized: process.env.NODE_ENV === 'production',
+    // Limit concurrent image optimization
+    minimumCacheTTL: 60,
+    deviceSizes: [640, 750, 828, 1080, 1200],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256],
   },
   // Proxy API requests to Express server
   async rewrites() {
