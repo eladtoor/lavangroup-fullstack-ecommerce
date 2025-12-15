@@ -2,8 +2,11 @@
 
 import Link from 'next/link';
 import { FaPhone, FaEnvelope, FaFacebook, FaInstagram, FaWhatsapp } from 'react-icons/fa';
+import { useAppSelector } from '@/lib/redux/hooks';
 
 export default function Footer() {
+  const user = useAppSelector((state) => state.user?.user);
+  
   return (
     <footer className="bg-gray-900 text-white py-6 text-center" dir="rtl">
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -44,11 +47,13 @@ export default function Footer() {
                 העגלה שלי
               </Link>
             </li>
-            <li>
-              <Link href="/user-profile" title="נהל את הפרופיל האישי שלך" className="text-lg hover:text-yellow-400 transition">
-                הפרופיל שלי
-              </Link>
-            </li>
+            {user && (
+              <li>
+                <Link href="/user-profile" title="נהל את הפרופיל האישי שלך" className="text-lg hover:text-yellow-400 transition">
+                  הפרופיל שלי
+                </Link>
+              </li>
+            )}
             <li>
               <Link href="/terms" title="קרא את תנאי השימוש ומדיניות הפרטיות" className="text-lg hover:text-yellow-400 transition">
                 תנאי שימוש ומדיניות פרטיות
