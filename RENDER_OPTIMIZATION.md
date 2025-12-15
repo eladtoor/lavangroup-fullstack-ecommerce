@@ -1,37 +1,46 @@
 # Render Deployment Optimizations
 
+## ⚡ Configured for Render Plan (512MB RAM, 0.5 CPU)
+
 ## בעיות שתוקנו (Issues Fixed)
 
 ### 1. **502 Bad Gateway - Server Crashes**
-**בעיה:** השרת קורס בגלל מחסור בזיכרון (Render Free Tier = 512MB RAM)
+**בעיה:** השרת קורס בגלל מחסור בזיכרון
 
-**פתרון:**
-- ✅ הוספת הגבלות זיכרון: `--max-old-space-size=460`
-- ✅ כיבוי אופטימיזציית תמונות של Next.js בפרודקשן
-- ✅ הגבלת connection pool של MongoDB
+**פתרון (512MB RAM, 0.5 CPU):**
+- ✅ הגבלות זיכרון: `--max-old-space-size=460`
+- ✅ Next.js image optimization כבוי (חוסך זיכרון)
+- ✅ Connection pool מוגבל: `maxPoolSize: 10`
 - ✅ תיקון Change Streams עם timeout וסגירה נכונה
 - ✅ Graceful shutdown למניעת חיבורים תלויים
+- ✅ CPU מהיר יותר (0.5 במקום 0.1) = builds מהירים יותר
 
 ### 2. **תמונות לא עולות / איטיות**
-**בעיה:** Next.js מנסה לבצע אופטימיזציה לתמונות בשרת (אוכל זיכרון)
+**בעיה:** תמונות לוקחות זמן להיטען
 
-**פתרון:**
+**פתרון (512MB RAM):**
 ```javascript
 images: {
-  unoptimized: true, // Use Cloudinary optimization instead
+  unoptimized: true, // Use Cloudinary instead
 }
 ```
 
-**המלצה:** השתמש ב-Cloudinary transformations:
+**חובה:** השתמש ב-Cloudinary transformations:
 ```
 https://res.cloudinary.com/YOUR_CLOUD/image/upload/w_400,f_auto,q_auto/image.jpg
 ```
 
+**פרמטרים חשובים:**
+- `w_400` - רוחב 400px
+- `f_auto` - פורמט אוטומטי (WebP/AVIF)
+- `q_auto` - איכות אוטומטית
+- `c_fill` - חיתוך חכם
+
 ## הגדרות נדרשות ב-Render
 
-### Environment Variables
+### Environment Variables (512MB RAM)
 ```bash
-# Memory limit
+# Memory limit - 460MB for Node (leaves 52MB for system)
 NODE_OPTIONS=--max-old-space-size=460
 
 # MongoDB with connection pooling
@@ -45,15 +54,32 @@ NEXT_PUBLIC_API_URL=https://your-site.onrender.com
 NODE_ENV=production
 ```
 
-### Build Command
+### Build Command (with caching)
 ```bash
-cd web && npm install && npm run build
+cd web && npm ci --prefer-offline && npm run build
 ```
+
+**Why `npm ci`?**
+- Faster than `npm install`
+- Uses `package-lock.json` exactly
+- Cleans node_modules first
+- Better caching on Render
 
 ### Start Command
 ```bash
-cd server && npm install && npm start
+cd server && npm ci && npm start
 ```
+
+### Build Cache Warning
+If you see: `⚠ No build cache found`
+
+**Fix:**
+1. Use `npm ci` instead of `npm install` (done ✅)
+2. Add to Render Environment Variables:
+   ```
+   NEXT_TELEMETRY_DISABLED=1
+   ```
+3. Render automatically caches `node_modules` and `.next/cache`
 
 ## מעקב אחרי קריסות (Monitoring)
 
@@ -90,7 +116,7 @@ npm run build -- --analyze
 
 ## טיפים לפיתוח
 
-### בדיקת זיכרון לוקלית:
+### בדיקת זיכרון לוקלית (512MB):
 ```bash
 node --max-old-space-size=460 server/combined.js
 ```

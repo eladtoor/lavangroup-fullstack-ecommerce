@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: lavangroup
+    runtime: node
+    plan: starter # $7/month - 512MB RAM, 0.5 CPU
+    region: oregon # Choose closest to your users
+    buildCommand: cd web && npm ci --prefer-offline && npm run build
+    startCommand: cd server && npm ci && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=460
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+    autoDeploy: true
+    # No persistent disk on 512MB plan
+

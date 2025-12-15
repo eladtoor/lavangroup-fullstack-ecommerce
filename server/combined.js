@@ -48,9 +48,9 @@ async function start() {
       await mongoose.connect(process.env.MONGO_URI, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
-        maxPoolSize: 10, // Limit connection pool
+        maxPoolSize: 10, // Limited for 512MB RAM
         minPoolSize: 2,
-        socketTimeoutMS: 45000, // Close sockets after 45s
+        socketTimeoutMS: 45000,
         serverSelectionTimeoutMS: 10000,
         heartbeatFrequencyMS: 10000,
       });
@@ -123,6 +123,7 @@ async function start() {
   // ---- WebSocket (copied from server.js) ----
   const broadcastProductsUpdate = async () => {
     try {
+      // Limit products to save memory (512MB RAM)
       const updatedProducts = await mongoose.model("Product").find({}).lean().limit(1000);
       const message = JSON.stringify({ type: "PRODUCTS_UPDATED", payload: updatedProducts });
       
