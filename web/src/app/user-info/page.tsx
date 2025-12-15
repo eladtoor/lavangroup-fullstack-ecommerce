@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged, deleteUser, signOut } from 'firebase/auth';
 import { useAppDispatch } from '@/lib/redux/hooks';
 import { setUser, logoutUser } from '@/lib/redux/slices/userSlice';
@@ -25,12 +25,34 @@ export default function UserInfoPage() {
   const router = useRouter();
   const auth = getAuth();
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isExistingUser, setIsExistingUser] = useState(false);
   const formCompletedRef = useRef(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
+        
+        // Load existing user data from Firestore
+        try {
+          const userRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userRef);
+          
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            setIsExistingUser(true); // Mark as existing user
+            setName(userData.name || '');
+            setPhone(userData.phone || '');
+            setCity(userData.address?.city || '');
+            setStreet(userData.address?.street || '');
+            setApartment(userData.address?.apartment || '');
+            setFloor(userData.address?.floor || '');
+            setEntrance(userData.address?.entrance || '');
+            setAgreeToTerms(userData.termsAndConditions || false);
+          }
+        } catch (error) {
+          console.error('Error loading user data:', error);
+        }
       } else {
         setCurrentUser(null);
       }
@@ -39,15 +61,8 @@ export default function UserInfoPage() {
     return () => unsubscribe();
   }, [auth]);
 
-  // Cleanup incomplete registration when component unmounts
-  useEffect(() => {
-    return () => {
-      // If form was not completed and user is leaving, delete the account
-      if (currentUser && !formCompletedRef.current) {
-        handleCancelRegistration();
-      }
-    };
-  }, [currentUser]);
+  // REMOVED: Cleanup was causing issues - users getting deleted while filling form
+  // Users can manually click cancel if they want to abort registration
 
   const handleCancelRegistration = async () => {
     if (currentUser && !isSubmitting) {
@@ -69,7 +84,10 @@ export default function UserInfoPage() {
   };
 
   const handleCancel = async () => {
-    await handleCancelRegistration();
+    if (!isExistingUser) {
+      // Only delete account for new users
+      await handleCancelRegistration();
+    }
     router.push('/');
   };
 
@@ -83,7 +101,9 @@ export default function UserInfoPage() {
       return;
     }
 
-    if (!currentUser) {
+    const user = auth.currentUser;
+    
+    if (!user) {
       setError('שגיאה: המשתמש לא מחובר. נסה שוב.');
       setIsSubmitting(false);
       return;
@@ -91,8 +111,8 @@ export default function UserInfoPage() {
 
     try {
       const updatedUser = {
-        uid: currentUser.uid,
-        email: currentUser.email,
+        uid: user.uid,
+        email: user.email,
         name: name || '',
         phone: phone || '',
         address: {
@@ -131,11 +151,34 @@ export default function UserInfoPage() {
     { label: 'השלמת פרטים' }
   ];
 
+  // If not authenticated, show login prompt
+  if (!currentUser && !auth.currentUser) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen bg-gray-100 text-center py-20">
+        <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+          <h1 className="text-2xl font-bold text-red-600 mb-6">לא מחובר</h1>
+          <p className="mb-4">נראה שהתנתקת. אנא התחבר שוב.</p>
+          <button
+            onClick={() => router.push('/login')}
+            className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
+          >
+            חזור להתחברות
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-gray-100 text-center py-20">
         <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
           <Breadcrumbs items={breadcrumbItems} />
           <h1 className="text-2xl font-bold text-gray-800 mb-6">אנא הזן את פרטיך</h1>
+          {auth.currentUser && (
+            <div className="mb-4 text-sm text-green-600">
+              ✅ מחובר כ: {auth.currentUser.email}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex flex-col">
             <label className="text-gray-700 text-right">שם:</label>

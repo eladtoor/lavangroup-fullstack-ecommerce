@@ -22,37 +22,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // If user is authenticated, check if profile is complete
-      if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-
-            // Check if profile is incomplete (missing required fields)
-            const isProfileIncomplete =
-              !userData.name ||
-              !userData.phone ||
-              !userData.address?.city ||
-              !userData.address?.street ||
-              !userData.termsAndConditions;
-
-            if (isProfileIncomplete) {
-              // Redirect to user-info to complete profile
-              router.push('/user-info');
-              return;
-            }
-          } else {
-            // User document doesn't exist, redirect to complete profile
-            router.push('/user-info');
-            return;
-          }
-        } catch (error) {
-          console.error('Error checking user profile:', error);
-        }
-      }
-
+      // If user is authenticated, just let them in
+      // Profile completion will be checked at checkout
       setIsChecking(false);
     });
 

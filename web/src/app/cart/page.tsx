@@ -170,6 +170,13 @@ export default function CartPage() {
   const handleCheckout = async () => {
     if (!isAuthenticated) return;
 
+    // Check if profile is complete before checkout
+    if (!user?.name || !user?.phone || !temporaryAddress.city || !temporaryAddress.street) {
+      setErrorMessage('יש להשלים את הפרטים האישיים והכתובת לפני ביצוע הזמנה');
+      router.push('/user-info');
+      return;
+    }
+
     const purchaseData = {
       purchaseId: `${Date.now()}`,
       cartItems: cartItems.map((item: any) => ({

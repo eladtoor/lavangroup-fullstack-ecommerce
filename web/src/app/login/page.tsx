@@ -29,11 +29,12 @@ export default function LoginPage() {
   const refParam = searchParams.get('ref');
   const user = useAppSelector((state) => state.user?.user);
 
-  useEffect(() => {
-    if (user?.uid) {
-      router.push('/');
-    }
-  }, [user, router]);
+  // Removed - causes redirect loop
+  // useEffect(() => {
+  //   if (user?.uid) {
+  //     router.push('/');
+  //   }
+  // }, [user, router]);
 
   const handleGoogleSignIn = async () => {
     try {
