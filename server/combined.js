@@ -35,7 +35,14 @@ const WEB_DIR = path.join(__dirname, "..", "web");
 async function start() {
   const app = express();
   const server = http.createServer(app);
-  const wss = new WebSocket.Server({ server });
+  const wss = new WebSocket.Server({ 
+    server,
+    verifyClient: (info, callback) => {
+      // Allow all connections for now
+      // TODO: Add token verification for production
+      callback(true);
+    }
+  });
 
   // ---- DB ----
   if (!process.env.MONGO_URI) {
@@ -118,22 +125,90 @@ async function start() {
   // Everything else -> Next
   app.use((req, res) => handle(req, res));
 
-  // ---- WebSocket (copied from server.js) ----
-  const broadcastProductsUpdate = async () => {
+  // ---- WebSocket with optimizations ----
+  
+  // Heartbeat mechanism to detect dead connections
+  const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.isAlive === false) {
+        console.log('🔴 Terminating dead WebSocket connection');
+        return ws.terminate();
+      }
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000); // Check every 30 seconds
+
+  wss.on('connection', (ws) => {
+    ws.isAlive = true;
+    ws.on('pong', () => { 
+      ws.isAlive = true; 
+    });
+    console.log('🟢 New WebSocket client connected');
+    
+    // Handle incoming messages
+    ws.on('message', async (message) => {
+      try {
+        const parsedMessage = JSON.parse(message.toString());
+        
+        if (parsedMessage.type === "REQUEST_PRODUCTS_UPDATE") {
+          broadcastProductsUpdate();
+        }
+        
+        // Handle single product update request (optimized)
+        if (parsedMessage.type === "REQUEST_PRODUCT_UPDATE" && parsedMessage.productId) {
+          broadcastProductsUpdate(parsedMessage.productId);
+        }
+
+        if (parsedMessage.type === "REQUEST_CATEGORIES_UPDATE") {
+          broadcastCategoriesUpdate();
+        }
+      } catch (error) {
+        console.error("❌ Error parsing WebSocket message:", error);
+      }
+    });
+    
+    ws.on('close', () => {
+      console.log('🔴 WebSocket client disconnected');
+    });
+  });
+
+  const broadcastProductsUpdate = async (changedProductId = null) => {
     try {
-      // Limit products to save memory (512MB RAM)
-      const updatedProducts = await mongoose.model("Product").find({}).lean().limit(1000);
-      const message = JSON.stringify({ type: "PRODUCTS_UPDATED", payload: updatedProducts });
+      let payload;
+      let updateType = "PRODUCTS_UPDATED";
       
+      if (changedProductId) {
+        // Send only the changed product
+        const changedProduct = await mongoose.model("Product").findById(changedProductId).lean();
+        if (changedProduct) {
+          payload = changedProduct;
+          updateType = "PRODUCT_CHANGED";
+        } else {
+          return; // Product not found, skip broadcast
+        }
+      } else {
+        // Full sync - limit to 1000 products for 512MB RAM
+        payload = await mongoose.model("Product").find({}).lean().limit(1000);
+      }
+      
+      const message = JSON.stringify({ type: updateType, payload });
+      
+      let sentCount = 0;
       wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
           try {
             client.send(message);
+            sentCount++;
           } catch (err) {
             console.error("❌ Error sending to WebSocket client:", err);
           }
         }
       });
+      
+      if (sentCount > 0 && process.env.NODE_ENV !== 'production') {
+        console.log(`📤 Broadcast sent to ${sentCount} clients (type: ${updateType})`);
+      }
     } catch (error) {
       console.error("❌ Error broadcasting product updates:", error);
     }
@@ -179,8 +254,21 @@ async function start() {
         maxAwaitTimeMS: 30000, // Prevent hanging
       });
 
-      changeStreamInstance.on("change", async () => {
-        broadcastProductsUpdate();
+      changeStreamInstance.on("change", async (change) => {
+        // Send only the changed product instead of all products
+        const productId = change.documentKey?._id;
+        
+        if (change.operationType === 'delete') {
+          // For deletions, send full list
+          broadcastProductsUpdate();
+        } else if (productId) {
+          // For updates/inserts, send only changed product
+          broadcastProductsUpdate(productId);
+        } else {
+          // Fallback to full broadcast
+          broadcastProductsUpdate();
+        }
+        
         broadcastCategoriesUpdate();
       });
 
@@ -209,6 +297,11 @@ async function start() {
   // ---- Graceful shutdown ----
   const gracefulShutdown = async (signal) => {
     console.log(`\n⚠️ ${signal} received, closing gracefully...`);
+    
+    // Clear heartbeat interval
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+    }
     
     // Close change stream
     if (changeStreamInstance) {

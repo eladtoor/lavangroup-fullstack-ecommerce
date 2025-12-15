@@ -12,6 +12,17 @@ export const generateCombinations = (arrays: any[][]): any[][] => {
 };
 
 export const fetchCategories = (categories: any) => {
+  // Handle new format: direct array
+  if (Array.isArray(categories?.categories)) {
+    return categories.categories.map((category: any) => ({
+      categoryName: category.name || category.categoryName,
+      subCategories: (category.subcategories || category.subCategories || []).map((subCategory: any) => ({
+        subCategoryName: subCategory.name || subCategory.subCategoryName,
+      })),
+    }));
+  }
+  
+  // Handle old format: companyCategories object
   if (categories?.categories?.companyCategories) {
     return Object.values(categories.categories.companyCategories).map(
       (category: any) => ({
@@ -22,6 +33,7 @@ export const fetchCategories = (categories: any) => {
       })
     );
   }
+  
   return [];
 };
 

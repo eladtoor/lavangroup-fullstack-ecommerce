@@ -765,17 +765,31 @@ function AdminPanelContent() {
                 </div>
 
                 <div className="mb-4">
-                  <label className="block font-semibold mb-2">תמונות:</label>
+                  <label className="block font-semibold mb-2 flex items-center gap-2">
+                    תמונות:
+                    <span className="relative group">
+                      <span className="cursor-help text-blue-500 bg-blue-100 rounded-full w-5 h-5 inline-flex items-center justify-center text-xs font-bold">?</span>
+                      <span className="absolute right-0 top-6 w-72 bg-gray-800 text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg">
+                        <strong className="block mb-1">איך להעתיק כתובת תמונה מגוגל:</strong>
+                        1. לחץ <strong>שמאלי</strong> על התמונה (תיפתח בגדול)<br/>
+                        2. לחץ <strong>ימני</strong> על התמונה הגדולה<br/>
+                        3. בחר &quot;פתח תמונה בכרטיסייה חדשה&quot;<br/>
+                        4. העתק את הכתובת מהכרטיסייה<br/>
+                        <span className="text-green-300 block mt-1">✓ הכתובת צריכה להתחיל ב-https://</span>
+                        <span className="text-red-300 block">✗ אל תלחץ ימני ישירות על התמונה הקטנה!</span>
+                      </span>
+                    </span>
+                  </label>
                   <input
                     type="text"
                     name="תמונות"
                     value={newProduct.תמונות}
                     onChange={(e) => handleInputChange(e, setNewProduct)}
                     className="w-full border p-2 rounded"
-                    placeholder="הדבק כתובת URL של תמונה מכל אתר"
+                    placeholder="הדבק כתובת URL של תמונה (https://...)"
                   />
                   <p className="text-sm text-gray-600 mt-1">
-                    💡 ניתן להדביק קישור לתמונה מכל אתר - התמונה תועלה אוטומטית ל-Cloudinary בעת השמירה
+                    💡 התמונה תועלה אוטומטית ל-Cloudinary בעת השמירה
                   </p>
                 </div>
 

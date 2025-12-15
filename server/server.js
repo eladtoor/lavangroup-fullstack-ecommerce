@@ -22,7 +22,14 @@ const imageProxyRoutes = require("./routes/imageProxyRoutes");
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ 
+  server,
+  verifyClient: (info, callback) => {
+    // Allow all connections for now
+    // TODO: Add token verification for production
+    callback(true);
+  }
+});
 
 if (!process.env.MONGO_URI) {
   console.error("❌ MONGO_URI is not defined in environment variables.");
@@ -61,7 +68,8 @@ const corsOptions = {
   credentials: true,
 };
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // ✅ HTTP Security Headers Middleware
 app.use((req, res, next) => {
@@ -131,30 +139,63 @@ app.get("/", (req, res) => {
  *  🔹 WEBSOCKET LOGIC BELOW
  *  ========================== */
 
-// Broadcast product updates to all clients
-const broadcastProductsUpdate = async () => {
-  try {
-    // ✅ שליפה ישירה עם המודל כדי לוודא שאנחנו מקבלים נתונים מעודכנים באמת
-    const updatedProducts = await mongoose.model("Product").find({}).lean();
+// Heartbeat mechanism to detect dead connections
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      console.log('🔴 Terminating dead WebSocket connection');
+      return ws.terminate();
+    }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000); // Check every 30 seconds
 
+wss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => { 
+    ws.isAlive = true; 
+  });
+  console.log('🟢 New WebSocket client connected');
+});
+
+// Broadcast product updates to all clients
+const broadcastProductsUpdate = async (changedProductId = null) => {
+  try {
+    let payload;
+    let updateType = "PRODUCTS_UPDATED";
+    
+    if (changedProductId) {
+      const changedProduct = await mongoose.model("Product").findById(changedProductId).lean();
+      if (changedProduct) {
+        payload = changedProduct;
+        updateType = "PRODUCT_CHANGED";
+      } else {
+        // Fallback to full broadcast if product not found
+        payload = await mongoose.model("Product").find({}).lean().limit(1000);
+      }
+    } else {
+      // Full sync - limit to 1000 products for 512MB RAM
+      payload = await mongoose.model("Product").find({}).lean().limit(1000);
+    }
+    
+    const message = JSON.stringify({ type: updateType, payload });
+    
+    let sentCount = 0;
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
-        // 🔍 בדיקה אם יש מוצרים לא תקינים
-
-        const specificProducts = updatedProducts.filter((p) =>
-          ["5352", "1234"].includes(p.מזהה.toString())
-        );
-
-        console.log(
-          "🔄 WebSocket - Server sending specific products:",
-          specificProducts
-        );
-
-        client.send(
-          JSON.stringify({ type: "PRODUCTS_UPDATED", payload: updatedProducts })
-        );
+        try {
+          client.send(message);
+          sentCount++;
+        } catch (err) {
+          console.error("❌ Error sending to WebSocket client:", err);
+        }
       }
     });
+    
+    if (sentCount > 0 && process.env.NODE_ENV !== 'production') {
+      console.log(`📤 Broadcast sent to ${sentCount} clients (type: ${updateType})`);
+    }
   } catch (error) {
     console.error("❌ Error broadcasting product updates:", error);
   }
@@ -201,18 +242,41 @@ const broadcastCategoriesUpdate = async () => {
 };
 
 // Setup MongoDB Change Stream
+let changeStreamInstance = null;
+
 const setupChangeStream = () => {
   try {
-    const productCollection = mongoose.connection.collection("products");
-    const changeStream = productCollection.watch();
+    // Close existing stream if any
+    if (changeStreamInstance) {
+      changeStreamInstance.close();
+    }
 
-    changeStream.on("change", async (change) => {
-      broadcastProductsUpdate(); // Broadcast updated product list
-      broadcastCategoriesUpdate(); // ✅ Now also update categories list
+    const productCollection = mongoose.connection.collection("products");
+    changeStreamInstance = productCollection.watch([], {
+      fullDocument: 'updateLookup',
+      maxAwaitTimeMS: 30000, // Prevent hanging
     });
 
-    changeStream.on("error", (error) => {
+    changeStreamInstance.on("change", async (change) => {
+      const productId = change.documentKey?._id;
+      
+      if (change.operationType === 'delete') {
+        broadcastProductsUpdate();
+      } else if (productId) {
+        broadcastProductsUpdate(productId);
+      } else {
+        broadcastProductsUpdate();
+      }
+      
+      broadcastCategoriesUpdate();
+    });
+
+    changeStreamInstance.on("error", (error) => {
       console.error("❌ Change Stream error:", error);
+      if (changeStreamInstance) {
+        changeStreamInstance.close();
+        changeStreamInstance = null;
+      }
       setTimeout(setupChangeStream, 5000);
     });
 
@@ -233,12 +297,15 @@ wss.on("connection", (ws) => {
       // console.log("📩 Parsed WebSocket Message:", parsedMessage);
 
       if (parsedMessage.type === "REQUEST_PRODUCTS_UPDATE") {
-        console.log("🔄 WebSocket: Sending Updated Products...");
-        broadcastProductsUpdate(); // ✅ Ensure this function is broadcasting correctly
+        broadcastProductsUpdate(); // Full broadcast
+      }
+      
+      // Handle single product update request (optimized)
+      if (parsedMessage.type === "REQUEST_PRODUCT_UPDATE" && parsedMessage.productId) {
+        broadcastProductsUpdate(parsedMessage.productId);
       }
 
       if (parsedMessage.type === "REQUEST_CATEGORIES_UPDATE") {
-        console.log("🔄 WebSocket: Sending Updated Categories...");
         broadcastCategoriesUpdate();
       }
     } catch (error) {
@@ -254,3 +321,18 @@ wss.on("connection", (ws) => {
 // Start Server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+// Graceful shutdown
+server.on('close', () => {
+  console.log('🔴 Server closing...');
+  clearInterval(heartbeatInterval);
+  if (changeStreamInstance) {
+    changeStreamInstance.close();
+  }
+  wss.clients.forEach((client) => {
+    client.close();
+  });
+  mongoose.connection.close(false, () => {
+    console.log('🔴 MongoDB connection closed');
+  });
+});

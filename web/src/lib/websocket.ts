@@ -3,12 +3,14 @@
 import { store } from './redux/store';
 
 let socket: WebSocket | null = null;
+let reconnectAttempts = 0;
+const maxReconnectAttempts = 10;
 const isProd = process.env.NODE_ENV === 'production';
 
 export const initializeWebSocket = () => {
   // Prevent multiple connections
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    if (!isProd) console.log('WebSocket already connected');
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+    if (!isProd) console.log('WebSocket already connected or connecting');
     return socket;
   }
 
@@ -25,13 +27,15 @@ export const initializeWebSocket = () => {
   socket = new WebSocket(getWsBaseUrl());
 
   socket.onopen = () => {
-    // WebSocket connected successfully
+    reconnectAttempts = 0; // Reset on successful connection
+    if (!isProd) console.log('🟢 WebSocket Connected');
   };
 
   socket.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data);
 
+      // Handle full products update
       if (message.type === 'PRODUCTS_UPDATED') {
         if (message.payload.length) {
           store.dispatch({
@@ -47,19 +51,54 @@ export const initializeWebSocket = () => {
         }
       }
 
+      // Handle single product change (optimized)
+      if (message.type === 'PRODUCT_CHANGED') {
+        const changedProduct = message.payload;
+        if (changedProduct && changedProduct._id) {
+          // Get current products
+          const state = store.getState();
+          const currentProducts = state.products?.products || [];
+          
+          // Update or add the changed product
+          const productIndex = currentProducts.findIndex((p: any) => p._id === changedProduct._id);
+          let updatedProducts;
+          
+          if (productIndex >= 0) {
+            // Update existing product
+            updatedProducts = [...currentProducts];
+            updatedProducts[productIndex] = changedProduct;
+          } else {
+            // Add new product
+            updatedProducts = [...currentProducts, changedProduct];
+          }
+          
+          store.dispatch({
+            type: 'UPDATE_PRODUCTS_LIST',
+            payload: updatedProducts,
+          });
+
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('products', JSON.stringify(updatedProducts));
+          }
+          
+          if (!isProd) console.log('✅ Product updated:', changedProduct.שם);
+        }
+      }
+
+      // Handle categories update
       if (message.type === 'CATEGORIES_UPDATED') {
-        const formattedCategories = {
-          companyName: 'טמבור',
-          companyCategories: message.payload,
-        };
+        // Support both old and new formats
+        const categories = Array.isArray(message.payload) 
+          ? message.payload 
+          : message.payload;
 
         store.dispatch({
           type: 'SET_CATEGORIES',
-          payload: formattedCategories,
+          payload: categories,
         });
 
         if (typeof window !== 'undefined') {
-          localStorage.setItem('categories', JSON.stringify(formattedCategories));
+          localStorage.setItem('categories', JSON.stringify(categories));
         }
       }
     } catch (error) {
@@ -71,13 +110,28 @@ export const initializeWebSocket = () => {
     console.error('❌ WebSocket Error:', error);
   };
 
-  socket.onclose = () => {
-    if (!isProd) console.log('🔴 WebSocket Disconnected');
-    // Attempt to reconnect after 5 seconds
-    setTimeout(() => {
-      if (!isProd) console.log('🔄 Attempting to reconnect WebSocket...');
-      initializeWebSocket();
-    }, 5000);
+  socket.onclose = (event) => {
+    socket = null;
+    
+    if (!isProd) {
+      console.log('🔴 WebSocket Disconnected', event.code, event.reason);
+    }
+    
+    // Exponential backoff reconnection
+    if (reconnectAttempts < maxReconnectAttempts) {
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Max 30 seconds
+      reconnectAttempts++;
+      
+      if (!isProd) {
+        console.log(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`);
+      }
+      
+      setTimeout(() => {
+        initializeWebSocket();
+      }, delay);
+    } else {
+      console.error('❌ WebSocket: Max reconnection attempts reached');
+    }
   };
 
   return socket;

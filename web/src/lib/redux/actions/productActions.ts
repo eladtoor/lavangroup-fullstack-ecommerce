@@ -103,17 +103,15 @@ export const updateProduct = (updatedProduct: any) => async (dispatch: AppDispat
     if (response.ok) {
       dispatch({ type: 'UPDATE_PRODUCT_SUCCESS', payload: data });
 
-      // Notify WebSocket to update all users
+      // Notify WebSocket to update all users with the specific product ID
       const socket = getWebSocket();
       if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'REQUEST_PRODUCTS_UPDATE' }));
+        socket.send(JSON.stringify({ 
+          type: 'REQUEST_PRODUCT_UPDATE', 
+          productId: updatedProduct._id 
+        }));
         socket.send(JSON.stringify({ type: 'REQUEST_CATEGORIES_UPDATE' }));
       }
-
-      // Fetch updated products after a short delay
-      setTimeout(() => {
-        dispatch(fetchProducts());
-      }, 500);
     } else {
       throw new Error(data.message || 'Failed to update product');
     }

@@ -15,10 +15,12 @@ export const fetchAllProducts = async () => {
   }
 };
 
-// Fetch product by ID
+// Fetch product by ID (no cache - always fresh data)
 export const fetchProductById = async (id: string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/products/${id}`);
+    const response = await fetch(`${API_BASE_URL}/api/products/${id}`, {
+      cache: 'no-store', // Always fetch fresh data
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
