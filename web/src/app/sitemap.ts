@@ -3,6 +3,10 @@ import { fetchAllProducts, fetchCategories } from '@/lib/api';
 import { buildCategoryUrl } from '@/lib/category-slugs';
 import { buildProductCanonicalPath } from '@/lib/product-slug';
 
+// Generate sitemap at runtime, not build time
+export const dynamic = 'force-dynamic';
+export const revalidate = 3600; // Regenerate every hour
+
 type SubCategory = {
   subCategoryName: string;
   [key: string]: any;
