@@ -1,15 +1,32 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAppSelector } from '@/lib/redux/hooks';
 import ProductCard from './ProductCard';
 import { Sparkles } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export default function RecommendedProducts() {
   const products = useAppSelector((state) => state.products.products);
+  const [featuredProductIds, setFeaturedProductIds] = useState<string[]>([]);
 
-  // Get 10 random products that have a valid price and image
-  const randomProducts = useMemo(() => {
+  useEffect(() => {
+    const fetchFeaturedProducts = async () => {
+      try {
+        const featuredDoc = await getDoc(doc(db, 'settings', 'featuredProducts'));
+        if (featuredDoc.exists()) {
+          setFeaturedProductIds(featuredDoc.data().productIds || []);
+        }
+      } catch (error) {
+        console.error('Error fetching featured products:', error);
+      }
+    };
+    fetchFeaturedProducts();
+  }, []);
+
+  // Get featured products or fallback to random
+  const displayedProducts = useMemo(() => {
     if (!products.length) return [];
 
     // Filter products that have a price greater than 0 AND an image
@@ -21,13 +38,24 @@ export default function RecommendedProducts() {
         product['תמונות'].trim() !== ''
     );
 
-    // Shuffle and return 10 random products
+    // If we have featured products, use them
+    if (featuredProductIds.length > 0) {
+      const featured = completeProducts.filter((product) =>
+        featuredProductIds.includes(product._id)
+      );
+      // If we have featured products, return them (up to 10)
+      if (featured.length > 0) {
+        return featured.slice(0, 10);
+      }
+    }
+
+    // Fallback to random products if no featured products selected
     const shuffled = [...completeProducts].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, 10);
-  }, [products]);
+  }, [products, featuredProductIds]);
 
   // Don't render if no products available
-  if (randomProducts.length === 0) {
+  if (displayedProducts.length === 0) {
     return null;
   }
 
@@ -45,7 +73,7 @@ export default function RecommendedProducts() {
 
         {/* Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {randomProducts.map((product, index) => (
+          {displayedProducts.map((product, index) => (
             <ProductCard key={product._id} product={product} priority={index < 5} />
           ))}
         </div>

@@ -11,6 +11,8 @@ import { increaseQuantity, decreaseQuantity, removeFromCart, setCartItems } from
 import { loadCartFromFirestore, saveCartToFirestore } from '@/utils/cartUtils';
 import { auth, db } from '@/lib/firebase';
 import { collection, addDoc, doc, getDoc, setDoc } from 'firebase/firestore';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 interface MaterialGroup {
   groupName: string;
@@ -53,18 +55,29 @@ export default function CartPage() {
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ' ';
 
   useEffect(() => {
+    let previousUserId: string | null = null;
+    
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        const currentUserId = currentUser.uid;
+        
+        // If user changed, clear cart first
+        if (previousUserId && previousUserId !== currentUserId) {
+          dispatch(setCartItems([]));
+        }
+        
         setIsAuthenticated(true);
+        previousUserId = currentUserId;
 
-        // Reset the cart when user logs in
+        // Reset the cart when user logs in (or changes)
         dispatch(setCartItems([]));
 
         // Load new user's cart
         const cartFromFirestore = await loadCartFromFirestore();
-        dispatch(setCartItems(cartFromFirestore));
+        dispatch(setCartItems(cartFromFirestore || []));
       } else {
         setIsAuthenticated(false);
+        previousUserId = null;
         router.push('/login');
 
         // Clear the cart on logout
@@ -76,7 +89,7 @@ export default function CartPage() {
   }, [router, dispatch]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !user?.uid) return;
 
     const fetchUserData = async () => {
       if (!auth.currentUser) return;
@@ -110,11 +123,11 @@ export default function CartPage() {
     };
 
     const fetchCart = async () => {
+      // Clear cart first to avoid showing old user's cart
+      dispatch(setCartItems([]));
+      
       const cartFromFirestore = await loadCartFromFirestore();
-
-      if (cartFromFirestore.length > 0) {
-        dispatch(setCartItems(cartFromFirestore));
-      }
+      dispatch(setCartItems(cartFromFirestore || []));
     };
 
     const fetchMaterialGroups = async () => {
@@ -130,7 +143,7 @@ export default function CartPage() {
     fetchUserData();
     fetchCart();
     fetchMaterialGroups();
-  }, [dispatch, isAuthenticated]);
+  }, [dispatch, isAuthenticated, user?.uid]);
 
   useEffect(() => {
     if (materialGroups.length > 0) {
@@ -513,6 +526,334 @@ export default function CartPage() {
   const vatAmount = finalTotalPriceBeforeVAT * vatRate;
   const finalTotalPriceWithVAT = finalTotalPriceBeforeVAT + vatAmount;
 
+  const isAdmin = user?.isAdmin || user?.userType === 'admin';
+
+  const generatePDF = async () => {
+    if (cartItems.length === 0) {
+      alert('העגלה ריקה');
+      return;
+    }
+
+    const date = new Date().toLocaleDateString('he-IL');
+    
+    // Create container for page 1
+    const pdfContainer = document.createElement('div');
+    pdfContainer.id = 'pdf-page1';
+    pdfContainer.style.position = 'fixed';
+    pdfContainer.style.top = '0';
+    pdfContainer.style.left = '0';
+    pdfContainer.style.width = '210mm';
+    pdfContainer.style.minHeight = '297mm';
+    pdfContainer.style.backgroundColor = 'white';
+    pdfContainer.style.direction = 'rtl';
+    pdfContainer.style.fontFamily = 'Arial, Helvetica, sans-serif';
+    pdfContainer.style.padding = '30px';
+    pdfContainer.style.zIndex = '-1';
+
+    // Helper function to build product HTML
+    const buildProductHTML = (item: any, index: number) => {
+      const productName = item.name || item.שם || 'לא זמין';
+      const sku = item.sku || item['מק"ט'] || 'לא זמין';
+      const quantity = item.quantity || 1;
+      const unitPrice = item.unitPrice || 0;
+      const totalPrice = unitPrice * quantity;
+      const materialGroup = item.materialGroup || '';
+      const imageUrl = item.image || item.תמונות || '/default-image.jpg';
+      const comment = item.comment || '';
+
+      return `
+        <div style="display: flex; align-items: flex-start; padding: 25px; border-bottom: 2px solid #e5e7eb; gap: 25px; page-break-inside: avoid; break-inside: avoid; justify-content: center;">
+          <div style="flex: 0 0 50px; text-align: center; font-weight: bold; color: #6b7280; padding-top: 8px; font-size: 18px;">${index + 1}</div>
+          <div style="flex: 0 0 120px; display: flex; justify-content: center;">
+            <img src="${imageUrl}" alt="${productName}" style="width: 120px; height: 120px; object-fit: cover; border-radius: 10px; border: 2px solid #e5e7eb;" onerror="this.src='/default-image.jpg'" />
+          </div>
+          <div style="flex: 1; text-align: right; min-width: 0; max-width: 400px;">
+            <div style="font-weight: bold; margin-bottom: 10px; font-size: 20px; color: #1f2937;">${productName}</div>
+            <div style="color: #6b7280; font-size: 16px; margin-bottom: 6px;">מק"ט: ${sku}</div>
+            ${materialGroup ? `<div style="color: #6b7280; font-size: 16px; margin-bottom: 6px;">קבוצת חומרים: ${materialGroup === 'Colors and Accessories' ? 'צבעים ומוצרים נלווים' : materialGroup === 'Powders' ? 'אבקות (דבקים וטייח)' : materialGroup === 'Gypsum and Tracks' ? 'גבס ומסלולים' : materialGroup}</div>` : ''}
+            ${comment ? `<div style="background-color: #fef3c7; border-right: 4px solid #f59e0b; padding: 12px 16px; margin-top: 10px; border-radius: 6px; font-size: 16px; color: #92400e;"><strong>הערה:</strong> ${comment}</div>` : ''}
+          </div>
+          <div style="flex: 0 0 100px; text-align: center; padding-top: 8px;">
+            <div style="font-size: 14px; color: #6b7280; margin-bottom: 10px; font-weight: 600;">כמות</div>
+            <div style="font-weight: bold; font-size: 24px; color: #1f2937;">${quantity}</div>
+          </div>
+          <div style="flex: 0 0 140px; text-align: left; padding-top: 8px;">
+            <div style="font-size: 14px; color: #6b7280; margin-bottom: 10px; font-weight: 600;">מחיר כולל</div>
+            <div style="font-weight: bold; font-size: 24px; color: #2563eb;">₪${totalPrice.toFixed(2)}</div>
+            <div style="font-size: 14px; color: #9ca3af; margin-top: 6px;">₪${unitPrice.toFixed(2)} ליחידה</div>
+          </div>
+        </div>
+      `;
+    };
+
+    // Build header and customer info HTML
+    // Get base URL for logo
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const logoUrl = `${baseUrl}/logo.png`;
+
+    const headerAndCustomerHTML = `
+      <!-- Header -->
+      <div style="text-align: center; margin-bottom: 40px; padding-bottom: 25px; border-bottom: 4px solid #2563eb;">
+        <img src="${logoUrl}" alt="LavanGroup Logo" style="width: 180px; height: auto; margin-bottom: 20px;" onerror="this.style.display='none'" />
+        <h1 style="font-size: 36px; margin: 0 0 15px 0; color: #1f2937; font-weight: 700;">הצעת מחיר</h1>
+        <div style="font-size: 18px; color: #6b7280; margin-top: 10px;">תאריך: ${date}</div>
+      </div>
+
+      ${user ? `
+      <!-- Customer Info -->
+      <div style="background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); padding: 25px; border-radius: 12px; margin-bottom: 35px; border: 2px solid #e5e7eb;">
+        <h2 style="font-size: 20px; margin: 0 0 18px 0; color: #1f2937; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">פרטי לקוח</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 17px;">
+          <div><strong style="color: #4b5563;">שם:</strong> <span style="color: #1f2937;">${user.name || 'לא זמין'}</span></div>
+          <div><strong style="color: #4b5563;">אימייל:</strong> <span style="color: #1f2937;">${user.email || 'לא זמין'}</span></div>
+          <div><strong style="color: #4b5563;">טלפון:</strong> <span style="color: #1f2937;">${user.phone || 'לא זמין'}</span></div>
+        </div>
+      </div>
+      ` : ''}
+
+      <!-- Products Section Header -->
+      <div style="margin-bottom: 25px;">
+        <h2 style="font-size: 22px; margin: 0 0 25px 0; color: #1f2937; font-weight: 700; padding-bottom: 12px; border-bottom: 3px solid #e5e7eb; text-align: center;">פרטי מוצרים</h2>
+      </div>
+    `;
+
+    // Split products into pages - 2 products on first page (with header), 3 products on subsequent pages
+    const PRODUCTS_FIRST_PAGE = 2;
+    const PRODUCTS_PER_PAGE = 3;
+    
+    const productPages: any[][] = [];
+    let remainingProducts = [...cartItems];
+    
+    // First page products
+    productPages.push(remainingProducts.splice(0, PRODUCTS_FIRST_PAGE));
+    
+    // Remaining pages
+    while (remainingProducts.length > 0) {
+      productPages.push(remainingProducts.splice(0, PRODUCTS_PER_PAGE));
+    }
+
+    // Create containers for each product page
+    const productPageContainers: HTMLDivElement[] = [];
+
+    productPages.forEach((pageProducts, pageIndex) => {
+      const container = document.createElement('div');
+      container.id = `pdf-products-page-${pageIndex}`;
+      container.style.position = 'fixed';
+      container.style.top = '0';
+      container.style.left = '0';
+      container.style.width = '210mm';
+      container.style.minHeight = '297mm';
+      container.style.backgroundColor = 'white';
+      container.style.direction = 'rtl';
+      container.style.fontFamily = 'Arial, Helvetica, sans-serif';
+      container.style.padding = '30px';
+      container.style.zIndex = '-1';
+
+      let pageProductsHTML = '';
+      const startIndex = pageIndex === 0 ? 0 : PRODUCTS_FIRST_PAGE + (pageIndex - 1) * PRODUCTS_PER_PAGE;
+      pageProducts.forEach((item: any, idx: number) => {
+        pageProductsHTML += buildProductHTML(item, startIndex + idx);
+      });
+
+      if (pageIndex === 0) {
+        // First page with header and customer info
+        container.innerHTML = `
+          <div style="max-width: 100%; margin: 0 auto; background: white;">
+            ${headerAndCustomerHTML}
+            <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+              ${pageProductsHTML}
+            </div>
+          </div>
+        `;
+      } else {
+        // Continuation pages with just logo and products
+        container.innerHTML = `
+          <div style="max-width: 100%; margin: 0 auto; background: white;">
+            <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #2563eb;">
+              <img src="${logoUrl}" alt="LavanGroup Logo" style="width: 120px; height: auto; margin-bottom: 10px;" onerror="this.style.display='none'" />
+              <div style="font-size: 14px; color: #6b7280;">הצעת מחיר - המשך</div>
+            </div>
+            <div style="background: white; border: 2px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+              ${pageProductsHTML}
+            </div>
+          </div>
+        `;
+      }
+
+      productPageContainers.push(container);
+    });
+
+    // Use first container as main pdfContainer
+    pdfContainer.innerHTML = productPageContainers[0].innerHTML;
+
+    // Page 2: Summary
+    const page2Container = document.createElement('div');
+    page2Container.id = 'pdf-page2';
+    page2Container.style.position = 'fixed';
+    page2Container.style.top = '0';
+    page2Container.style.left = '0';
+    page2Container.style.width = '210mm';
+    page2Container.style.minHeight = '297mm';
+    page2Container.style.backgroundColor = 'white';
+    page2Container.style.direction = 'rtl';
+    page2Container.style.fontFamily = 'Arial, Helvetica, sans-serif';
+    page2Container.style.padding = '30px';
+    page2Container.style.zIndex = '-1';
+
+    page2Container.innerHTML = `
+      <div style="max-width: 100%; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; min-height: 100%;">
+        <!-- Header -->
+        <div style="text-align: center; margin-bottom: 50px; padding-bottom: 25px; border-bottom: 4px solid #2563eb;">
+          <img src="${logoUrl}" alt="LavanGroup Logo" style="width: 180px; height: auto; margin-bottom: 20px;" onerror="this.style.display='none'" />
+          <h1 style="font-size: 36px; margin: 0 0 15px 0; color: #1f2937; font-weight: 700;">הצעת מחיר</h1>
+          <div style="font-size: 18px; color: #6b7280; margin-top: 10px;">תאריך: ${date}</div>
+        </div>
+
+        <!-- Summary Section -->
+        <div style="background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%); padding: 40px; border-radius: 16px; border: 3px solid #e5e7eb; max-width: 600px; margin: 0 auto; width: 100%;">
+          <h2 style="font-size: 28px; margin: 0 0 35px 0; color: #1f2937; font-weight: 700; padding-bottom: 20px; border-bottom: 4px solid #2563eb; text-align: center;">סיכום הזמנה</h2>
+          <div style="display: flex; justify-content: space-between; padding: 18px 0; border-bottom: 2px solid #d1d5db; font-size: 18px;">
+            <span style="color: #4b5563;">סה"כ מוצרים לפני הנחה:</span>
+            <span style="font-weight: 700; color: #1f2937;">₪${originalTotalPrice.toFixed(2)}</span>
+          </div>
+          ${cartDiscount > 0 ? `
+          <div style="display: flex; justify-content: space-between; padding: 18px 0; border-bottom: 2px solid #d1d5db; font-size: 18px; color: #059669;">
+            <span>הנחת עגלה (%${cartDiscount}):</span>
+            <span style="font-weight: 700;">₪${(originalTotalPrice * cartDiscount / 100).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          <div style="display: flex; justify-content: space-between; padding: 18px 0; border-bottom: 2px solid #d1d5db; font-size: 18px;">
+            <span style="color: #4b5563;">מחיר משלוח:</span>
+            <span style="font-weight: 700; color: #1f2937;">₪${transportationCosts.toFixed(2)}</span>
+          </div>
+          ${craneUnloadFee > 0 ? `
+          <div style="display: flex; justify-content: space-between; padding: 18px 0; border-bottom: 2px solid #d1d5db; font-size: 18px; color: #dc2626;">
+            <span>תוספת פריקת מנוף:</span>
+            <span style="font-weight: 700;">₪${craneUnloadFee.toFixed(2)}</span>
+          </div>
+          ` : ''}
+          <div style="display: flex; justify-content: space-between; padding: 18px 0; border-bottom: 2px solid #d1d5db; font-size: 18px;">
+            <span style="color: #4b5563;">סה"כ לפני מע"מ:</span>
+            <span style="font-weight: 700; color: #1f2937;">₪${finalTotalPriceBeforeVAT.toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 18px 0; border-bottom: 4px solid #1f2937; font-size: 18px; margin-bottom: 25px;">
+            <span style="color: #4b5563;">מע"מ (18%):</span>
+            <span style="font-weight: 700; color: #1f2937;">₪${vatAmount.toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 30px 0 0 0; margin-top: 25px; background: white; padding: 30px; border-radius: 12px; border: 3px solid #2563eb;">
+            <span style="font-size: 24px; font-weight: 700; color: #1f2937;">סה"כ לתשלום:</span>
+            <span style="font-size: 32px; font-weight: 700; color: #2563eb;">₪${finalTotalPriceWithVAT.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Add all containers to body
+    document.body.appendChild(pdfContainer);
+    productPageContainers.slice(1).forEach(container => {
+      document.body.appendChild(container);
+    });
+    document.body.appendChild(page2Container);
+
+    // Wait for all images to load across all containers
+    const allContainers = [pdfContainer, ...productPageContainers.slice(1), page2Container];
+    await new Promise((resolve) => {
+      let totalImages = 0;
+      let loadedImages = 0;
+
+      allContainers.forEach(container => {
+        const images = container.querySelectorAll('img');
+        totalImages += images.length;
+
+        images.forEach((img) => {
+          if (img.complete) {
+            loadedImages++;
+          } else {
+            img.onload = () => {
+              loadedImages++;
+              if (loadedImages === totalImages) resolve(null);
+            };
+            img.onerror = () => {
+              loadedImages++;
+              if (loadedImages === totalImages) resolve(null);
+            };
+          }
+        });
+      });
+
+      if (totalImages === 0 || loadedImages === totalImages) {
+        resolve(null);
+      }
+    });
+
+    // Generate PDF with separate pages for each container
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      // Add first product page
+      const canvas1 = await html2canvas(pdfContainer, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
+
+      const imgData1 = canvas1.toDataURL('image/png', 1.0);
+      const ratio1 = pdfWidth / (canvas1.width * 0.264583);
+      const scaledHeight1 = (canvas1.height * 0.264583) * ratio1;
+      pdf.addImage(imgData1, 'PNG', 0, 0, pdfWidth, Math.min(scaledHeight1, pdfHeight));
+
+      // Add additional product pages
+      for (let i = 1; i < productPageContainers.length; i++) {
+        const canvas = await html2canvas(productPageContainers[i], {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+
+        const imgData = canvas.toDataURL('image/png', 1.0);
+        const ratio = pdfWidth / (canvas.width * 0.264583);
+        const scaledHeight = (canvas.height * 0.264583) * ratio;
+
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, Math.min(scaledHeight, pdfHeight));
+      }
+
+      // Add Summary page
+      const canvas2 = await html2canvas(page2Container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
+
+      const imgData2 = canvas2.toDataURL('image/png', 1.0);
+      const ratio2 = pdfWidth / (canvas2.width * 0.264583);
+      const scaledHeight2 = (canvas2.height * 0.264583) * ratio2;
+
+      pdf.addPage();
+      pdf.addImage(imgData2, 'PNG', 0, 0, pdfWidth, Math.min(scaledHeight2, pdfHeight));
+
+      const fileName = `cart-report-${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('שגיאה ביצירת PDF. נסה שוב.');
+    } finally {
+      // Remove all containers
+      document.body.removeChild(pdfContainer);
+      productPageContainers.slice(1).forEach(container => {
+        if (container.parentNode) {
+          document.body.removeChild(container);
+        }
+      });
+      document.body.removeChild(page2Container);
+    }
+  };
+
   const breadcrumbItems = [
     { label: 'דף הבית', href: '/' },
     { label: 'העגלה שלי' }
@@ -604,6 +945,18 @@ export default function CartPage() {
               >
                 {user?.isCreditLine ? 'סיום הזמנה' : 'מעבר לתשלום'}
               </button>
+
+              {isAdmin && (
+                <button
+                  onClick={generatePDF}
+                  className="w-full mt-2 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  ייצא PDF מפורט
+                </button>
+              )}
 
               {errorMessage && (
                 <p className="mt-2 text-red-600 text-center">{errorMessage}</p>

@@ -14,7 +14,6 @@ import RecommendedProducts from '@/components/RecommendedProducts';
 import QuickCart from '@/components/QuickCart';
 import FAQ from '@/components/FAQ';
 import { FiShoppingCart } from 'react-icons/fi';
-import { BadgeDollarSign, Truck, ShieldCheck, Headset } from 'lucide-react';
 
 export default function HomePage() {
   const dispatch = useAppDispatch();
@@ -41,46 +40,44 @@ export default function HomePage() {
           <header className="text-center mb-10">
             {/* Eyebrow - Company name */}
             <div className="text-gray-600 font-semibold text-sm md:text-base mb-3 tracking-wide uppercase">
-              לבן עבודות גמר
+              Lavan Group
             </div>
             
             <h1 className="text-3xl md:text-5xl font-bold text-gray-900 mb-4 leading-tight">
-              חומרי בניין ושיפוצים במחיר הטוב ביותר
+              צבעים וחומרי בניין מהיצרן והיבואן ישירות ללקוח בשטח
             </h1>
             
-            <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-              מגוון רחב של מוצרים איכותיים | משלוחים מהירים | שירות מקצועי
-            </p>
+            <div className="flex flex-wrap justify-center gap-3 md:gap-4 mb-8 max-w-2xl mx-auto">
+              <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm md:text-base font-medium">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                מגוון רחב של מוצרים איכותיים
+              </span>
+              <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm md:text-base font-medium">
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                משלוחים מהירים
+              </span>
+              <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm md:text-base font-medium">
+                <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                שירות מקצועי
+              </span>
+            </div>
             
-            {/* USPs - Simple Clean Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-4xl mx-auto">
-              <div className="flex flex-col items-center p-4">
-                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-3">
-                  <BadgeDollarSign className="w-8 h-8 text-orange-600" strokeWidth={2} />
-                </div>
-                <h3 className="text-sm md:text-base font-semibold text-gray-900">מחיר מנצח</h3>
-              </div>
-              
-              <div className="flex flex-col items-center p-4">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3">
-                  <Truck className="w-8 h-8 text-blue-600" strokeWidth={2} />
-                </div>
-                <h3 className="text-sm md:text-base font-semibold text-gray-900">משלוח מהיר</h3>
-              </div>
-              
-              <div className="flex flex-col items-center p-4">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-3">
-                  <ShieldCheck className="w-8 h-8 text-green-600" strokeWidth={2} />
-                </div>
-                <h3 className="text-sm md:text-base font-semibold text-gray-900">איכות מעולה</h3>
-              </div>
-              
-              <div className="flex flex-col items-center p-4">
-                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-3">
-                  <Headset className="w-8 h-8 text-purple-600" strokeWidth={2} />
-                </div>
-                <h3 className="text-sm md:text-base font-semibold text-gray-900">שירות אישי</h3>
-              </div>
+            {/* Stats & Welcome Grid */}
+            <div className="max-w-5xl mx-auto">
+              <StatsCounters>
+                {user ? (
+                  <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
+                    ברוך הבא, {user.name} 👋
+                  </h2>
+                ) : (
+                  <button
+                    className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold py-3 px-10 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                    onClick={handleLoginClick}
+                  >
+                    התחבר עכשיו
+                  </button>
+                )}
+              </StatsCounters>
             </div>
           </header>
         </div>
@@ -93,27 +90,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats & Welcome Section */}
-      <section className="bg-white py-12 border-b border-gray-200" aria-label="סטטיסטיקות אתר">
-        <div className="container mx-auto px-4">
-          <StatsCounters>
-            <div className="absolute left-1/2 transform -translate-x-1/2 sm:pt-4">
-              {user ? (
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
-                  ברוך הבא, {user.name}
-                </h2>
-              ) : (
-                <button
-                  className="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-8 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-3 sm:mt-0"
-                  onClick={handleLoginClick}
-                >
-                  התחבר עכשיו
-                </button>
-              )}
-            </div>
-          </StatsCounters>
-        </div>
-      </section>
 
       {/* Categories Section */}
       {(() => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAppSelector, useAppDispatch } from '@/lib/redux/hooks';
 import { fetchProducts, createProduct, updateProduct, deleteProduct } from '@/lib/redux/actions/productActions';
 import { maybeFetchCategories } from '@/lib/redux/actions/categoryActions';
@@ -20,7 +20,7 @@ import {
   handleRemoveAttribute,
   handleRemoveAttributeValue
 } from '@/lib/utils/adminPanelUtils';
-import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { uploadImageToCloudinary } from '@/lib/utils/cloudinaryUpload';
 import { processImageUrl } from '@/lib/utils/imageProxyUtils';
@@ -72,6 +72,8 @@ function AdminPanelContent() {
   const [quantityEnabled, setQuantityEnabled] = useState(false);
   const [quantityInput, setQuantityInput] = useState('');
   const [editedPrices, setEditedPrices] = useState<Record<string, { minPrice?: number; transportationPrice?: number }>>({});
+  const [featuredProductIds, setFeaturedProductIds] = useState<string[]>([]);
+  const [featuredSearchQuery, setFeaturedSearchQuery] = useState('');
 
   useEffect(() => {
     dispatch(fetchProducts());
@@ -98,6 +100,19 @@ function AdminPanelContent() {
       .then((res) => res.json())
       .then((data) => setMaterialGroups(data))
       .catch((error) => console.error('Error fetching material groups:', error));
+
+    // Fetch featured products
+    const fetchFeaturedProducts = async () => {
+      try {
+        const featuredDoc = await getDoc(doc(db, 'settings', 'featuredProducts'));
+        if (featuredDoc.exists()) {
+          setFeaturedProductIds(featuredDoc.data().productIds || []);
+        }
+      } catch (error) {
+        console.error('Error fetching featured products:', error);
+      }
+    };
+    fetchFeaturedProducts();
   }, []);
 
   const handleStatsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -379,6 +394,54 @@ function AdminPanelContent() {
     }
   };
 
+  const handleToggleFeaturedProduct = (productId: string) => {
+    setFeaturedProductIds((prev) => {
+      if (prev.includes(productId)) {
+        return prev.filter((id) => id !== productId);
+      } else {
+        return [...prev, productId];
+      }
+    });
+  };
+
+  const handleSaveFeaturedProducts = async () => {
+    try {
+      await setDoc(doc(db, 'settings', 'featuredProducts'), {
+        productIds: featuredProductIds,
+        updatedAt: new Date().toISOString(),
+      });
+      alert('המוצרים המומלצים נשמרו בהצלחה!');
+    } catch (error) {
+      console.error('שגיאה בשמירת מוצרים מומלצים:', error);
+      alert('שגיאה בשמירה');
+    }
+  };
+
+  const handleClearFeaturedProducts = () => {
+    if (!confirm('האם אתה בטוח שברצונך למחוק את כל המוצרים המומלצים?')) return;
+    setFeaturedProductIds([]);
+  };
+
+  // Memoize filtered products for featured tab
+  const filteredFeaturedProducts = useMemo(() => {
+    return products
+      .filter((product) => {
+        if (!featuredSearchQuery) return true;
+        const query = featuredSearchQuery.toLowerCase();
+        const name = String(product.שם || '').toLowerCase();
+        const sku = String(product['מק"ט'] || '').toLowerCase();
+        const id = String(product.מזהה || '').toLowerCase();
+        return name.includes(query) || sku.includes(query) || id.includes(query);
+      })
+      .filter(
+        (product) =>
+          product['מחיר רגיל'] &&
+          Number(product['מחיר רגיל']) > 0 &&
+          product['תמונות'] &&
+          String(product['תמונות']).trim() !== ''
+      );
+  }, [products, featuredSearchQuery]);
+
   const breadcrumbItems = [
     { label: 'דף הבית', href: '/' },
     { label: 'פאנל ניהול' }
@@ -422,6 +485,12 @@ function AdminPanelContent() {
             className={`px-4 py-2 rounded ${activeTab === 'shipping' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
           >
             מחירי משלוח
+          </button>
+          <button
+            onClick={() => setActiveTab('featured')}
+            className={`px-4 py-2 rounded ${activeTab === 'featured' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          >
+            מוצרים מומלצים
           </button>
         </nav>
 
@@ -1044,6 +1113,68 @@ function AdminPanelContent() {
             >
               עדכן מחירים
             </button>
+          </div>
+        )}
+
+        {/* Featured Products Tab */}
+        {activeTab === 'featured' && (
+          <div className="bg-white p-6 rounded shadow">
+            <h2 className="text-2xl font-bold mb-4">ניהול מוצרים מומלצים</h2>
+            <p className="text-gray-600 mb-4">
+              בחר את המוצרים שיוצגו בדף הבית תחת "מוצרים מומלצים". אם למשתמש יש מוצרים בהנחה, הם יוצגו במקום.
+            </p>
+            
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="חפש מוצר..."
+                value={featuredSearchQuery}
+                onChange={(e) => setFeaturedSearchQuery(e.target.value)}
+                className="w-full border p-2 rounded mb-4"
+              />
+            </div>
+
+            <div className="mb-4 flex gap-2">
+              <button
+                onClick={handleSaveFeaturedProducts}
+                className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+              >
+                שמור מוצרים מומלצים
+              </button>
+              <button
+                onClick={handleClearFeaturedProducts}
+                className="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700"
+              >
+                נקה הכל
+              </button>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <span>נבחרו: {featuredProductIds.length} מוצרים</span>
+              </div>
+            </div>
+
+            <div className="max-h-96 overflow-y-auto border rounded p-4">
+              <div className="space-y-2">
+                {filteredFeaturedProducts.map((product) => (
+                    <label
+                      key={product._id}
+                      className="flex items-center gap-3 p-3 border rounded hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={featuredProductIds.includes(product._id)}
+                        onChange={() => handleToggleFeaturedProduct(product._id)}
+                        className="w-5 h-5"
+                      />
+                      <div className="flex-1">
+                        <div className="font-semibold">{product.שם}</div>
+                        <div className="text-sm text-gray-600">
+                          מק"ט: {product['מק"ט']} | מחיר: ₪{product['מחיר רגיל']}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+              </div>
+            </div>
           </div>
         )}
       </main>

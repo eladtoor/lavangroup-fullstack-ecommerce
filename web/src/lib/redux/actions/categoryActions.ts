@@ -1,5 +1,5 @@
 import { AppDispatch } from '../store';
-import { CategoryStructure, Category } from '../reducers/categoryReducer';
+import { CategoryStructure } from '../reducers/categoryReducer';
 
 const getBaseUrl = () =>
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
