@@ -316,6 +316,43 @@ function AdminPanelContent() {
       ...product,  // Spread the rest of the product properties
     };
 
+    // Convert variations to attributes format for the form
+    // DB stores: variations: [{ attributes: { "AttrName": { value: "X", price: 100 } } }]
+    // Form expects: attributes: [{ name: "AttrName", values: [{ value: "X", price: 100 }] }]
+    if (productToEdit.סוג === 'variable' && productToEdit.variations && productToEdit.variations.length > 0) {
+      const attributesMap: Record<string, { value: string; price: string }[]> = {};
+      
+      productToEdit.variations.forEach((variation: any) => {
+        if (variation.attributes && typeof variation.attributes === 'object') {
+          Object.entries(variation.attributes).forEach(([attrName, attrData]: [string, any]) => {
+            if (!attributesMap[attrName]) {
+              attributesMap[attrName] = [];
+            }
+            // Check if this value already exists (avoid duplicates)
+            const existingValue = attributesMap[attrName].find(
+              (v) => v.value === attrData.value
+            );
+            if (!existingValue) {
+              attributesMap[attrName].push({
+                value: attrData.value || '',
+                price: String(attrData.price || ''),
+              });
+            }
+          });
+        }
+      });
+
+      // Convert map to array format
+      const attributesArray = Object.entries(attributesMap).map(([name, values]) => ({
+        name,
+        values,
+      }));
+
+      if (attributesArray.length > 0) {
+        productToEdit.attributes = attributesArray;
+      }
+    }
+
     // If it's a variable product but has no attributes, set default
     if (productToEdit.סוג === 'variable' && productToEdit.attributes.length === 0) {
       productToEdit.attributes = [{ name: '', values: [{ value: '', price: '' }] }];
