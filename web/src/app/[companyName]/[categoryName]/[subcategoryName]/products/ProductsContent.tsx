@@ -5,11 +5,12 @@ import { useParams } from 'next/navigation';
 import { useAppSelector } from '@/lib/redux/hooks';
 import ProductCard from '@/components/ProductCard';
 import Breadcrumbs from '@/components/Breadcrumbs';
-import { parseUrlParams } from '@/lib/category-slugs';
+import { parseUrlParams, getCategoryCanonicalPath } from '@/lib/category-slugs';
 
 export default function ProductsContent() {
   const params = useParams();
-  const { categoryName, subcategoryName } = parseUrlParams({
+  const { categoryName, subcategoryName, companyName } = parseUrlParams({
+    companyName: params.companyName as string,
     categoryName: params.categoryName as string,
     subcategoryName: params.subcategoryName as string,
   });
@@ -79,14 +80,16 @@ export default function ProductsContent() {
 
   const products = currentSubcategory.products || [];
   const isDigitalCatalogCategory = categoryName === 'קטלוגים דיגיטלים להורדה';
-  const companyName = params.companyName ? decodeURIComponent(params.companyName as string) : '';
+  
+  // Build canonical breadcrumb URLs using English slugs
+  const categoryCanonicalPath = getCategoryCanonicalPath(companyName || 'טמבור', categoryName);
 
   const breadcrumbItems = [
     { label: 'דף הבית', href: '/' },
     { label: companyName || 'טמבור', href: '/' },
     { 
       label: categoryName, 
-      href: `/${encodeURIComponent(companyName)}/${encodeURIComponent(categoryName)}` 
+      href: categoryCanonicalPath
     },
     { label: subcategoryName }
   ];

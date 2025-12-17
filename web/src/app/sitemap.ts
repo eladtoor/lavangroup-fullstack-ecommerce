@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next';
 import { fetchAllProducts, fetchCategories } from '@/lib/api';
-import { buildCategoryUrl } from '@/lib/category-slugs';
+import { buildCategoryUrl, CANONICAL_BASE_URL } from '@/lib/category-slugs';
 import { buildProductCanonicalPath } from '@/lib/product-slug';
 
 // Generate sitemap at runtime, not build time
@@ -19,7 +19,8 @@ type Category = {
 };
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lavangroup.co.il';
+  // Always use canonical www URL for sitemap
+  const baseUrl = CANONICAL_BASE_URL;
   
   // Static routes
   const routes: MetadataRoute.Sitemap = [

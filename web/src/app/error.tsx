@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { Home, RefreshCw, AlertTriangle } from 'lucide-react';
+import { buildCategoryUrl } from '@/lib/category-slugs';
 
 export default function Error({
   error,
@@ -15,6 +16,10 @@ export default function Error({
     // Log error to monitoring service
     console.error('Application error:', error);
   }, [error]);
+
+  // Use canonical English slug URLs
+  const paintsUrl = buildCategoryUrl('טמבור', 'צבעים וחומרי גמר');
+  const gypsumUrl = buildCategoryUrl('טמבור', 'מוצרי גבס');
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-16" dir="rtl">
@@ -58,14 +63,14 @@ export default function Error({
           <h2 className="text-xl font-bold text-gray-900 mb-4">המשך לקטגוריות פופולריות:</h2>
           <div className="grid grid-cols-2 gap-3">
             <Link
-              href="/טמבור/צבעים וחומרי גמר"
+              href={paintsUrl}
               title="עבור לקטגוריית צבעים וחומרי גמר - מוצרים איכותיים"
               className="bg-white p-4 rounded-lg hover:shadow-md transition-shadow border border-gray-200"
             >
               <span className="font-medium text-gray-800">צבעים וחומרי גמר</span>
             </Link>
             <Link
-              href="/טמבור/גבס"
+              href={gypsumUrl}
               title="עבור לקטגוריית גבס ומסלולים - מוצרים איכותיים"
               className="bg-white p-4 rounded-lg hover:shadow-md transition-shadow border border-gray-200"
             >

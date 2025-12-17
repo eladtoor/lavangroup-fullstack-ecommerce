@@ -5,6 +5,9 @@
  * for better SEO and cleaner URLs
  */
 
+/** Canonical base URL (www enforced) */
+export const CANONICAL_BASE_URL = 'https://www.lavangroup.co.il';
+
 export const categorySlugMap: Record<string, string> = {
   // Company Name
   'טמבור': 'tambour',
@@ -126,6 +129,19 @@ export const slugToCategoryMap: Record<string, string> = Object.fromEntries(
 );
 
 /**
+ * Convert any string to ASCII-safe slug (fallback for unmapped categories)
+ */
+function toAsciiSlug(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '') // Remove non-word chars (keeps ASCII letters/numbers)
+    .replace(/[\s_]+/g, '-')  // Replace spaces/underscores with hyphens
+    .replace(/-+/g, '-')      // Collapse multiple hyphens
+    .replace(/^-|-$/g, '')    // Trim leading/trailing hyphens
+    || 'category';            // Fallback if empty
+}
+
+/**
  * Convert Hebrew category name to SEO-friendly slug
  */
 export function categoryToSlug(categoryName: string): string {
@@ -145,8 +161,12 @@ export function categoryToSlug(categoryName: string): string {
     return categorySlugMap[partialMatch];
   }
   
-  // Fallback: return encoded (not ideal but safe)
-  return encodeURIComponent(normalized);
+  // Fallback: return ASCII-safe slug (never Hebrew/encoded)
+  // Log warning in development to identify unmapped categories
+  if (process.env.NODE_ENV === 'development') {
+    console.warn(`[SEO] Unmapped category name: "${normalized}" - add to categorySlugMap`);
+  }
+  return toAsciiSlug(normalized);
 }
 
 /**
@@ -205,5 +225,60 @@ export function parseUrlParams(params: {
     categoryName: params.categoryName ? slugToCategory(params.categoryName) : '',
     subcategoryName: params.subcategoryName ? slugToCategory(params.subcategoryName) : undefined,
   };
+}
+
+/**
+ * Get canonical URL path for a category page.
+ * Returns path only (e.g., "/tambour/interior-wall-paints").
+ */
+export function getCategoryCanonicalPath(
+  companyName: string,
+  categoryName: string,
+  subcategoryName?: string
+): string {
+  return buildCategoryUrl(companyName, categoryName, subcategoryName);
+}
+
+/**
+ * Get full canonical URL for a category page (includes www domain).
+ */
+export function getCategoryCanonicalUrl(
+  companyName: string,
+  categoryName: string,
+  subcategoryName?: string
+): string {
+  return `${CANONICAL_BASE_URL}${getCategoryCanonicalPath(companyName, categoryName, subcategoryName)}`;
+}
+
+/**
+ * Check if URL params match the canonical slug path.
+ * Used to determine if a redirect is needed.
+ */
+export function paramsMatchCanonical(
+  params: { companyName?: string; categoryName?: string; subcategoryName?: string },
+  hebrewCompany: string,
+  hebrewCategory: string,
+  hebrewSubcategory?: string
+): boolean {
+  const expectedCompanySlug = categoryToSlug(hebrewCompany);
+  const expectedCategorySlug = categoryToSlug(hebrewCategory);
+  
+  // Decode params for comparison (they may be URL-encoded)
+  const actualCompany = decodeURIComponent(params.companyName || '');
+  const actualCategory = decodeURIComponent(params.categoryName || '');
+  
+  if (actualCompany !== expectedCompanySlug || actualCategory !== expectedCategorySlug) {
+    return false;
+  }
+  
+  if (hebrewSubcategory !== undefined) {
+    const expectedSubcategorySlug = categoryToSlug(hebrewSubcategory);
+    const actualSubcategory = decodeURIComponent(params.subcategoryName || '');
+    if (actualSubcategory !== expectedSubcategorySlug) {
+      return false;
+    }
+  }
+  
+  return true;
 }
 

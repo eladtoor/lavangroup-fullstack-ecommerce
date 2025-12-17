@@ -1,15 +1,24 @@
 import { Metadata } from 'next';
+import { permanentRedirect } from 'next/navigation';
 import { fetchCategories } from '@/lib/api';
 import ProductsContent from './ProductsContent';
 import StructuredData from '@/components/StructuredData';
-import { parseUrlParams } from '@/lib/category-slugs';
+import {
+  parseUrlParams,
+  getCategoryCanonicalPath,
+  getCategoryCanonicalUrl,
+  paramsMatchCanonical,
+  CANONICAL_BASE_URL,
+} from '@/lib/category-slugs';
 
 type Props = {
   params: { companyName: string; categoryName: string; subcategoryName: string };
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { categoryName, subcategoryName } = parseUrlParams(params);
+  const { categoryName, subcategoryName, companyName } = parseUrlParams(params);
+  const canonicalUrl = getCategoryCanonicalUrl(companyName, categoryName, subcategoryName);
+  const canonicalPath = getCategoryCanonicalPath(companyName, categoryName, subcategoryName);
   
   try {
     const categoriesData = await fetchCategories();
@@ -35,12 +44,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: `${subcategoryName} - ${categoryName} | Lavangroup`,
       description: `קנה מוצרי ${subcategoryName} מתוך ${categoryName} באתר לבן גרופ. משלוחים מהירים לכל הארץ.`,
       alternates: {
-        canonical: `/${params.companyName}/${params.categoryName}/${params.subcategoryName}/products`,
+        canonical: canonicalUrl,
       },
       openGraph: {
         title: `${subcategoryName} - ${categoryName} | Lavangroup`,
         description: `קנה מוצרי ${subcategoryName} מתוך ${categoryName} באתר לבן גרופ.`,
-        url: `/${params.companyName}/${params.categoryName}/${params.subcategoryName}/products`,
+        url: canonicalPath,
         images: subCategory.תמונה ? [{ url: subCategory.תמונה, width: 1200, height: 630, alt: subcategoryName }] : [{ url: '/logo.png', width: 800, height: 600, alt: 'Lavangroup' }],
       },
       twitter: {
@@ -60,7 +69,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function Page({ params }: Props) {
   const { categoryName, subcategoryName, companyName } = parseUrlParams(params);
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lavangroup.co.il';
+  const canonicalPath = getCategoryCanonicalPath(companyName, categoryName, subcategoryName);
+  const categoryPath = getCategoryCanonicalPath(companyName, categoryName);
+
+  // Enforce canonical URL: redirect if params don't match English slugs
+  if (!paramsMatchCanonical(params, companyName, categoryName, subcategoryName)) {
+    permanentRedirect(canonicalPath);
+  }
 
   // Fetch data for Schema Markup
   let products: any[] = [];
@@ -90,19 +105,19 @@ export default async function Page({ params }: Props) {
         '@type': 'ListItem',
         position: 1,
         name: 'בית',
-        item: baseUrl,
+        item: CANONICAL_BASE_URL,
       },
       {
         '@type': 'ListItem',
         position: 2,
         name: `${companyName} - ${categoryName}`,
-        item: `${baseUrl}/${params.companyName}/${params.categoryName}`,
+        item: `${CANONICAL_BASE_URL}${categoryPath}`,
       },
       {
         '@type': 'ListItem',
         position: 3,
         name: subcategoryName,
-        item: `${baseUrl}/${params.companyName}/${params.categoryName}/${params.subcategoryName}/products`,
+        item: `${CANONICAL_BASE_URL}${canonicalPath}`,
       },
     ],
   };

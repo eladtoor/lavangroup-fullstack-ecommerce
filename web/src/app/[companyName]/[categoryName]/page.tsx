@@ -1,8 +1,15 @@
 import { Metadata } from 'next';
+import { permanentRedirect } from 'next/navigation';
 import { fetchCategories } from '@/lib/api';
 import CategoryContent from './CategoryContent';
 import StructuredData from '@/components/StructuredData';
-import { parseUrlParams } from '@/lib/category-slugs';
+import {
+  parseUrlParams,
+  getCategoryCanonicalPath,
+  getCategoryCanonicalUrl,
+  paramsMatchCanonical,
+  CANONICAL_BASE_URL,
+} from '@/lib/category-slugs';
 
 type Props = {
   params: { companyName: string; categoryName: string };
@@ -10,6 +17,8 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { categoryName, companyName } = parseUrlParams(params);
+  const canonicalUrl = getCategoryCanonicalUrl(companyName, categoryName);
+  const canonicalPath = getCategoryCanonicalPath(companyName, categoryName);
   
   try {
     const categoriesData = await fetchCategories();
@@ -32,12 +41,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: `${categoryName} | Lavangroup`,
       description: `מוצרים בקטגוריה ${categoryName} באתר לבן גרופ. מגוון רחב של חומרי בניין ושיפוצים.`,
       alternates: {
-        canonical: `/${params.companyName}/${params.categoryName}`,
+        canonical: canonicalUrl,
       },
       openGraph: {
         title: `${categoryName} | Lavangroup`,
         description: `מוצרים בקטגוריה ${categoryName} באתר לבן גרופ.`,
-        url: `/${params.companyName}/${params.categoryName}`,
+        url: canonicalPath,
         type: 'website',
         images: category.תמונה ? [{ url: category.תמונה, width: 1200, height: 630, alt: categoryName }] : [{ url: '/logo.png', width: 800, height: 600, alt: 'Lavangroup' }],
       },
@@ -58,7 +67,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function Page({ params }: Props) {
   const { categoryName, companyName } = parseUrlParams(params);
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lavangroup.co.il';
+  const canonicalPath = getCategoryCanonicalPath(companyName, categoryName);
+
+  // Enforce canonical URL: redirect if params don't match English slugs
+  if (!paramsMatchCanonical(params, companyName, categoryName)) {
+    permanentRedirect(canonicalPath);
+  }
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
@@ -68,13 +82,13 @@ export default async function Page({ params }: Props) {
         '@type': 'ListItem',
         position: 1,
         name: 'בית',
-        item: baseUrl,
+        item: CANONICAL_BASE_URL,
       },
       {
         '@type': 'ListItem',
         position: 2,
         name: `${companyName} - ${categoryName}`,
-        item: `${baseUrl}/${params.companyName}/${params.categoryName}`,
+        item: `${CANONICAL_BASE_URL}${canonicalPath}`,
       },
     ],
   };

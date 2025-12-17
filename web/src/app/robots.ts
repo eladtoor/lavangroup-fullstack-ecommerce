@@ -1,8 +1,7 @@
 import { MetadataRoute } from 'next';
+import { CANONICAL_BASE_URL } from '@/lib/category-slugs';
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lavangroup.co.il';
-
   return {
     rules: {
       userAgent: '*',
@@ -21,7 +20,7 @@ export default function robots(): MetadataRoute.Robots {
         '/api'
       ],
     },
-    sitemap: `${baseUrl}/sitemap.xml`,
+    sitemap: `${CANONICAL_BASE_URL}/sitemap.xml`,
   };
 }
 
