@@ -7,6 +7,7 @@ import "react-toastify/dist/ReactToastify.css";
 import FloatingWhatsAppButton from "@/components/FloatingWhatsAppButton";
 import AccessibilityWidget from "@/components/AccessibilityWidget";
 import GTranslateScript from "@/components/GTranslateScript";
+import GoogleTagManager from "@/components/GoogleTagManager";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
 
@@ -82,6 +83,7 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl" className={inter.variable}>
       <body className={`${inter.className} flex flex-col min-h-screen`}>
+        <GoogleTagManager />
         <Providers>
           <GTranslateScript />
           <NavBar />
