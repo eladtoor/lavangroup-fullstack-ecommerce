@@ -29,13 +29,6 @@ export default function CategoryContent() {
     (state) => state.categories.loading
   );
 
-  // Fetch categories if not loaded
-  useEffect(() => {
-    if (!categories) {
-      dispatch(maybeFetchCategories());
-    }
-  }, [categories, dispatch]);
-  
   // Handle different structures
   let categoriesArray: any[] = [];
   
@@ -56,6 +49,18 @@ export default function CategoryContent() {
       categoriesArray = Object.values(categories);
     }
   }
+
+  // Fetch categories if not loaded or empty
+  useEffect(() => {
+    const hasCategories = categories && (
+      (Array.isArray(categories) && categories.length > 0) ||
+      (typeof categories === 'object' && Object.keys(categories).length > 0)
+    );
+    
+    if (!hasCategories && !isLoading) {
+      dispatch(maybeFetchCategories());
+    }
+  }, [categories, isLoading, dispatch]);
 
   const [categoryImages, setCategoryImages] = useState<Record<string, string>>({});
 
