@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Languages } from 'lucide-react';
+import { Globe } from 'lucide-react';
 
 interface Language {
   code: string;
@@ -72,17 +72,27 @@ export default function TranslateButton() {
     }
   };
 
+  const isHebrew = currentLang.code === 'iw';
+
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white transition-colors border border-gray-700 hover:border-red-500"
+        className={`flex items-center gap-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white transition-colors border border-gray-700 hover:border-red-500 ${
+          isHebrew ? 'p-2.5' : 'px-3 py-2'
+        }`}
         aria-label="בחר שפה"
       >
-        <Languages className="w-5 h-5" />
-        <span className="text-base font-medium hidden sm:inline">{currentLang.flag} {currentLang.nativeName}</span>
-        <span className="text-base font-medium sm:hidden">{currentLang.flag}</span>
+        {isHebrew ? (
+          <Globe className="w-6 h-6" />
+        ) : (
+          <>
+            <Globe className="w-5 h-5" />
+            <span className="text-base font-medium hidden sm:inline">{currentLang.flag} {currentLang.nativeName}</span>
+            <span className="text-base font-medium sm:hidden">{currentLang.flag}</span>
+          </>
+        )}
         <i className={`fas fa-chevron-down text-xs transition-transform ${isOpen ? 'rotate-180' : ''}`}></i>
       </button>
 
