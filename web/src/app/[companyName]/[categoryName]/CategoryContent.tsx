@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAppSelector } from '@/lib/redux/hooks';
+import { useAppSelector, useAppDispatch } from '@/lib/redux/hooks';
+import { maybeFetchCategories } from '@/lib/redux/actions/categoryActions';
 import ProductCard from '@/components/ProductCard';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { parseUrlParams, buildCategoryUrl, categoryToSlug } from '@/lib/category-slugs';
@@ -12,6 +13,7 @@ import { parseUrlParams, buildCategoryUrl, categoryToSlug } from '@/lib/category
 export default function CategoryContent() {
   const params = useParams();
   const router = useRouter();
+  const dispatch = useAppDispatch();
 
   // Parse URL slugs to Hebrew names
   const { categoryName, companyName } = parseUrlParams({
@@ -22,6 +24,17 @@ export default function CategoryContent() {
   const categories = useAppSelector(
     (state) => state.categories.categories
   );
+  
+  const isLoading = useAppSelector(
+    (state) => state.categories.loading
+  );
+
+  // Fetch categories if not loaded
+  useEffect(() => {
+    if (!categories) {
+      dispatch(maybeFetchCategories());
+    }
+  }, [categories, dispatch]);
   
   // Handle different structures
   let categoriesArray: any[] = [];
@@ -59,7 +72,19 @@ export default function CategoryContent() {
       .catch((err) => console.error('Error fetching category images:', err));
   }, []);
 
-  if (!categories || categoriesArray.length === 0) {
+  // Show loading state while fetching
+  if (isLoading || !categories) {
+    return (
+      <main className="min-h-screen container mx-auto pt-36 md:pt-40 p-6" dir="rtl">
+        <div className="text-center">
+          <p className="text-gray-600">טוען קטגוריות...</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Show error only if not loading and still no categories
+  if (categoriesArray.length === 0) {
     return (
       <main className="min-h-screen container mx-auto pt-36 md:pt-40 p-6" dir="rtl">
         <div className="text-center">
