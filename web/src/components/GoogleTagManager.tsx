@@ -23,14 +23,10 @@ export default function GoogleTagManager() {
         }}
       />
       
-      {/* Google Analytics 4 (gtag.js) */}
+      {/* Google Analytics 4 (gtag.js) - Load in head immediately */}
       <Script
-        src={`https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}`}
-        strategy="afterInteractive"
-      />
-      <Script
-        id="google-analytics"
-        strategy="afterInteractive"
+        id="google-analytics-gtag"
+        strategy="beforeInteractive"
         dangerouslySetInnerHTML={{
           __html: `
             window.dataLayer = window.dataLayer || [];
@@ -39,6 +35,11 @@ export default function GoogleTagManager() {
             gtag('config', '${GA4_MEASUREMENT_ID}');
           `,
         }}
+      />
+      <Script
+        src={`https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}`}
+        strategy="afterInteractive"
+        async
       />
       
       {/* Google Tag Manager - Noscript */}
