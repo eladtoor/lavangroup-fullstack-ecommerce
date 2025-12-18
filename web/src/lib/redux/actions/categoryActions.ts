@@ -6,10 +6,6 @@ const getBaseUrl = () =>
 
 // Fetch Categories from Server
 export const fetchCategories = () => async (dispatch: AppDispatch) => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('categoriesLastFetched', String(Date.now()));
-  }
-
   dispatch({ type: 'FETCH_CATEGORIES_REQUEST' });
 
   try {
@@ -39,6 +35,7 @@ export const fetchCategories = () => async (dispatch: AppDispatch) => {
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('categories', JSON.stringify(newData));
+      localStorage.setItem('categoriesLastFetched', String(Date.now()));
     }
 
     dispatch({ type: 'FETCH_CATEGORIES_SUCCESS', payload: newData });
@@ -51,8 +48,11 @@ export const fetchCategories = () => async (dispatch: AppDispatch) => {
   }
 };
 
-// Maybe Fetch Categories (with caching)
-export const maybeFetchCategories = () => async (dispatch: AppDispatch) => {
+// Cache duration: 5 minutes (reduced from 30 for better freshness)
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Maybe Fetch Categories (with improved caching)
+export const maybeFetchCategories = (forceRefresh = false) => async (dispatch: AppDispatch) => {
   if (typeof window === 'undefined') {
     // On server, just fetch fresh data
     return dispatch(fetchCategories());
@@ -62,16 +62,33 @@ export const maybeFetchCategories = () => async (dispatch: AppDispatch) => {
   const lastFetched = localStorage.getItem('categoriesLastFetched');
 
   const isExpired =
-    !lastFetched || Date.now() - Number(lastFetched) > 30 * 60 * 1000; // 30 minutes
+    !lastFetched || Date.now() - Number(lastFetched) > CACHE_DURATION;
 
-  if (cached) {
+  // Always show cached data immediately for better UX
+  if (cached && !forceRefresh) {
     dispatch({
       type: 'SET_CATEGORIES_FROM_STORAGE',
       payload: JSON.parse(cached),
     });
   }
 
-  if (!cached || isExpired) {
+  // Fetch fresh data if expired or forced
+  if (!cached || isExpired || forceRefresh) {
+    dispatch(fetchCategories());
+  }
+};
+
+// Revalidate categories when user returns to page (focus/visibility)
+export const revalidateCategoriesOnFocus = () => async (dispatch: AppDispatch) => {
+  if (typeof window === 'undefined') return;
+
+  const lastFetched = localStorage.getItem('categoriesLastFetched');
+  if (!lastFetched) return;
+
+  const timeSinceLastFetch = Date.now() - Number(lastFetched);
+  // Revalidate if cache is older than 2 minutes (stale-while-revalidate pattern)
+  if (timeSinceLastFetch > 2 * 60 * 1000) {
+    // Fetch in background without blocking UI
     dispatch(fetchCategories());
   }
 };

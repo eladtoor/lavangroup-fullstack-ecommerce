@@ -28,8 +28,11 @@ export const fetchProducts = () => async (dispatch: AppDispatch) => {
   }
 };
 
-// Maybe Fetch Products (with caching)
-export const maybeFetchProducts = () => async (dispatch: AppDispatch) => {
+// Cache duration: 5 minutes (reduced from 30 for better freshness)
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Maybe Fetch Products (with improved caching)
+export const maybeFetchProducts = (forceRefresh = false) => async (dispatch: AppDispatch) => {
   if (typeof window === 'undefined') {
     // On server, just fetch fresh data
     return dispatch(fetchProducts());
@@ -39,16 +42,33 @@ export const maybeFetchProducts = () => async (dispatch: AppDispatch) => {
   const lastFetched = localStorage.getItem('productsLastFetched');
 
   const isExpired =
-    !lastFetched || Date.now() - Number(lastFetched) > 30 * 60 * 1000; // 30 minutes
+    !lastFetched || Date.now() - Number(lastFetched) > CACHE_DURATION;
 
-  if (cached) {
+  // Always show cached data immediately for better UX
+  if (cached && !forceRefresh) {
     dispatch({
       type: 'SET_PRODUCTS_FROM_STORAGE',
       payload: JSON.parse(cached),
     });
   }
 
-  if (!cached || isExpired) {
+  // Fetch fresh data if expired or forced
+  if (!cached || isExpired || forceRefresh) {
+    dispatch(fetchProducts());
+  }
+};
+
+// Revalidate products when user returns to page (focus/visibility)
+export const revalidateProductsOnFocus = () => async (dispatch: AppDispatch) => {
+  if (typeof window === 'undefined') return;
+
+  const lastFetched = localStorage.getItem('productsLastFetched');
+  if (!lastFetched) return;
+
+  const timeSinceLastFetch = Date.now() - Number(lastFetched);
+  // Revalidate if cache is older than 2 minutes (stale-while-revalidate pattern)
+  if (timeSinceLastFetch > 2 * 60 * 1000) {
+    // Fetch in background without blocking UI
     dispatch(fetchProducts());
   }
 };
