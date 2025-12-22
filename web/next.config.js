@@ -1,7 +1,17 @@
 /** @type {import('next').NextConfig} */
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
+// Bundle analyzer is optional - only load if available and ANALYZE=true
+let withBundleAnalyzer = (config) => config;
+try {
+  if (process.env.ANALYZE === 'true') {
+    const bundleAnalyzer = require('@next/bundle-analyzer');
+    withBundleAnalyzer = bundleAnalyzer({
+      enabled: true,
+    });
+  }
+} catch (e) {
+  // Bundle analyzer not installed, skip it
+  console.log('Bundle analyzer not available, skipping...');
+}
 
 const nextConfig = {
   reactStrictMode: true,
