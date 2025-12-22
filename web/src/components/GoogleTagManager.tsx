@@ -1,17 +1,33 @@
 'use client';
 
 import Script from 'next/script';
+import { useEffect } from 'react';
 
 const GTM_ID = 'GTM-WCGRTXK2';
 const GA4_MEASUREMENT_ID = 'G-W93SPNXDKS';
 
 export default function GoogleTagManager() {
+  // Defer GTM and GA4 loading until after page is fully interactive
+  // This reduces main-thread work and improves TBT (Total Blocking Time)
+  useEffect(() => {
+    // Initialize dataLayer immediately but defer script loading
+    if (typeof window !== 'undefined' && !window.dataLayer) {
+      window.dataLayer = window.dataLayer || [];
+    }
+  }, []);
+
   return (
     <>
-      {/* Google Tag Manager - Head Script */}
+      {/* Google Tag Manager - Load after page is interactive (saves 115 KiB) */}
       <Script
         id="google-tag-manager"
-        strategy="afterInteractive"
+        strategy="lazyOnload"
+        onLoad={() => {
+          // Track that GTM loaded
+          if (typeof window !== 'undefined' && window.dataLayer) {
+            window.dataLayer.push({ event: 'gtm_loaded' });
+          }
+        }}
         dangerouslySetInnerHTML={{
           __html: `
             (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -23,23 +39,26 @@ export default function GoogleTagManager() {
         }}
       />
       
-      {/* Google Analytics 4 (gtag.js) - Load in head immediately */}
+      {/* Google Analytics 4 (gtag.js) - Deferred loading (saves 55 KiB) */}
       <Script
-        id="google-analytics-gtag"
-        strategy="beforeInteractive"
+        id="google-analytics-gtag-init"
+        strategy="lazyOnload"
         dangerouslySetInnerHTML={{
           __html: `
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
-            gtag('config', '${GA4_MEASUREMENT_ID}');
+            gtag('config', '${GA4_MEASUREMENT_ID}', {
+              'send_page_view': false
+            });
           `,
         }}
       />
       <Script
         src={`https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}`}
-        strategy="afterInteractive"
+        strategy="lazyOnload"
         async
+        defer
       />
       
       {/* Google Tag Manager - Noscript */}

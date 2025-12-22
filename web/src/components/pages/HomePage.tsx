@@ -2,18 +2,38 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useAppSelector, useAppDispatch } from '@/lib/redux/hooks';
 import { maybeFetchProducts } from '@/lib/redux/actions/productActions';
 import { maybeFetchCategories } from '@/lib/redux/actions/categoryActions';
-import Category from '@/components/Category';
-import StatsCounters from '@/components/StatsCounters';
-import Carousel from '@/components/Carousel';
-import AboutUs from '@/components/AboutUs';
-import PersonalizedDiscounts from '@/components/PersonalizedDiscounts';
-import RecommendedProducts from '@/components/RecommendedProducts';
-import QuickCart from '@/components/QuickCart';
-import FAQ from '@/components/FAQ';
-import { FiShoppingCart, FiInfo } from 'react-icons/fi';
+import { FiShoppingCart } from 'react-icons/fi';
+
+// Code split non-critical components to reduce initial bundle size
+// These components are below the fold and can be loaded lazily
+const Category = dynamic(() => import('@/components/Category'), {
+  ssr: true, // Important for SEO
+});
+const StatsCounters = dynamic(() => import('@/components/StatsCounters'), {
+  ssr: true,
+});
+const CarouselWrapper = dynamic(() => import('@/components/CarouselWrapper'), {
+  ssr: true, // Hero carousel is important
+});
+const AboutUs = dynamic(() => import('@/components/AboutUs'), {
+  ssr: true,
+});
+const PersonalizedDiscounts = dynamic(() => import('@/components/PersonalizedDiscounts'), {
+  ssr: false, // User-specific, can be client-only
+});
+const RecommendedProducts = dynamic(() => import('@/components/RecommendedProducts'), {
+  ssr: true, // Important for SEO
+});
+const QuickCart = dynamic(() => import('@/components/QuickCart'), {
+  ssr: false, // Interactive component, client-only
+});
+const FAQ = dynamic(() => import('@/components/FAQ'), {
+  ssr: true, // Important for SEO
+});
 
 export default function HomePage() {
   const dispatch = useAppDispatch();
@@ -50,22 +70,7 @@ export default function HomePage() {
             <div className="flex flex-wrap justify-center gap-3 md:gap-4 mb-8 max-w-2xl mx-auto">
               <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm md:text-base font-medium">
                 <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                הובלות חינם
-                <button
-                  className="relative inline-flex items-center justify-center w-5 h-5 text-green-600 hover:text-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 rounded-full group"
-                  aria-label="מידע על הובלה חינם"
-                >
-                  <FiInfo className="w-4 h-4" />
-                  {/* Tooltip - Enhanced */}
-                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 px-4 py-3 text-sm font-medium text-white bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none whitespace-normal text-center z-50 border-2 border-green-400/50 backdrop-blur-sm transform group-hover:scale-105">
-                    <span className="block font-bold mb-1 text-green-100">🚚 הובלה חינם</span>
-                    <span className="block text-xs font-normal text-white/95">בהגעה להזמנת מינימום</span>
-                    {/* Arrow - Enhanced */}
-                    <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-6 border-transparent border-t-green-600 drop-shadow-lg"></span>
-                    {/* Glow effect */}
-                    <span className="absolute inset-0 rounded-xl bg-green-400/20 blur-xl -z-10"></span>
-                  </span>
-                </button>
+                מגוון רחב של מוצרים איכותיים
               </span>
               <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm md:text-base font-medium">
                 <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
@@ -98,10 +103,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Carousel Section */}
+      {/* Carousel Section - Server-side rendered for better LCP */}
       <section className="bg-gray-100 py-12 border-b border-gray-200" aria-label="מבצעים ודגשים">
         <div className="container mx-auto px-4">
-          <Carousel />
+          <CarouselWrapper />
         </div>
       </section>
 

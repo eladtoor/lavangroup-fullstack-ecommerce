@@ -1,4 +1,8 @@
 /** @type {import('next').NextConfig} */
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+});
+
 const nextConfig = {
   reactStrictMode: true,
   // Generate build ID to help with caching
@@ -11,6 +15,37 @@ const nextConfig = {
   // CSS Optimization
   productionBrowserSourceMaps: false, // Disable source maps in production
   compress: true, // Enable gzip compression
+  // Performance optimizations
+  swcMinify: true, // Use SWC for minification (faster than Terser)
+  poweredByHeader: false, // Remove X-Powered-By header
+  // Experimental features for better performance
+  experimental: {
+    optimizeCss: true, // Optimize CSS
+    optimizePackageImports: ['@fortawesome/fontawesome-free', 'react-toastify'], // Tree-shake unused exports
+  },
+  // Headers for better caching and performance
+  async headers() {
+    return [
+      {
+        source: '/_next/static/media/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {
@@ -24,9 +59,10 @@ const nextConfig = {
     ],
     // Disable image optimization to save memory (512MB RAM only)
     unoptimized: process.env.NODE_ENV === 'production',
-    minimumCacheTTL: 60,
+    minimumCacheTTL: 31536000, // 1 year cache for images
     deviceSizes: [640, 750, 828, 1080, 1200],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
+    formats: ['image/avif', 'image/webp'], // Modern formats for better compression
   },
   // Proxy API requests to Express server
   async rewrites() {
@@ -48,4 +84,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withBundleAnalyzer(nextConfig);

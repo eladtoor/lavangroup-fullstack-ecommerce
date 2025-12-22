@@ -8,7 +8,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAppSelector, useAppDispatch } from '@/lib/redux/hooks';
 import { logoutUser } from '@/lib/redux/slices/userSlice';
-import '@fortawesome/fontawesome-free/css/all.min.css';
+// Font Awesome CSS is loaded in layout.tsx with optimization
 import TranslateButton from './TranslateButton';
 import { buildCategoryUrl } from '@/lib/category-slugs';
 
@@ -315,7 +315,7 @@ export default function NavBar() {
               </Link>
 
             <div className="text-2xl font-bold text-center text-gray-800 border-b-2 border-gray-300 pb-4">
-              {companyName}
+              {categories?.companyName || 'טמבור'}
             </div>
 
             <div className="border-b border-gray-200 pb-4">

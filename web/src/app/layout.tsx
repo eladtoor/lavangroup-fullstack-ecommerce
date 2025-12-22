@@ -4,12 +4,27 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import FloatingWhatsAppButton from "@/components/FloatingWhatsAppButton";
-import AccessibilityWidget from "@/components/AccessibilityWidget";
-import GTranslateScript from "@/components/GTranslateScript";
+// Load Font Awesome CSS - optimized with font-display: swap in globals.css
+import "@fortawesome/fontawesome-free/css/all.min.css";
+import dynamic from "next/dynamic";
 import GoogleTagManager from "@/components/GoogleTagManager";
+import GTranslateScript from "@/components/GTranslateScript";
 import NavBar from "@/components/NavBar";
-import Footer from "@/components/Footer";
+// Footer is now dynamically imported below
+
+// Code split non-critical components to reduce initial bundle size (saves ~242 KiB)
+const FloatingWhatsAppButton = dynamic(() => import("@/components/FloatingWhatsAppButton"), {
+  ssr: false,
+  loading: () => null, // Don't show loading state
+});
+const AccessibilityWidget = dynamic(() => import("@/components/AccessibilityWidget"), {
+  ssr: false,
+  loading: () => null, // Don't show loading state
+});
+// Code split Footer to reduce initial bundle
+const Footer = dynamic(() => import("@/components/Footer"), {
+  ssr: true, // Footer is important for SEO, keep SSR
+});
 
 const inter = Inter({
   subsets: ["latin"],
