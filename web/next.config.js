@@ -13,9 +13,6 @@ try {
   console.log('Bundle analyzer not available, skipping...');
 }
 
-// Load custom PostCSS plugin for font-display: swap
-const fontDisplayPlugin = require('./postcss-font-display-plugin.cjs');
-
 const nextConfig = {
   reactStrictMode: true,
   // Generate build ID to help with caching
@@ -95,76 +92,8 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Webpack configuration to add custom PostCSS plugin
-  webpack: (config, { isServer, dev }) => {
-    // Find PostCSS loader and inject our custom plugin
-    // Next.js processes CSS through multiple loaders, we need to catch all of them
-    const findAndModifyPostCSSLoader = (rules) => {
-      if (!rules) return;
-      
-      for (const rule of rules) {
-        if (rule.oneOf) {
-          findAndModifyPostCSSLoader(rule.oneOf);
-        }
-        
-        if (rule.use && Array.isArray(rule.use)) {
-          for (const use of rule.use) {
-            if (use.loader && typeof use.loader === 'string' && use.loader.includes('postcss-loader')) {
-              // Get or create postcssOptions
-              if (!use.options) use.options = {};
-              if (!use.options.postcssOptions) use.options.postcssOptions = {};
-              
-              // Handle both object and array plugin formats
-              if (!use.options.postcssOptions.plugins) {
-                use.options.postcssOptions.plugins = [];
-              }
-              
-              let plugins = use.options.postcssOptions.plugins;
-              
-              // Convert object to array if needed
-              if (!Array.isArray(plugins)) {
-                const pluginsArray = [];
-                for (const [name, options] of Object.entries(plugins)) {
-                  try {
-                    const plugin = require(name);
-                    pluginsArray.push(options ? [plugin, options] : plugin);
-                  } catch (e) {
-                    // Plugin not found, skip
-                  }
-                }
-                plugins = pluginsArray;
-                use.options.postcssOptions.plugins = plugins;
-              }
-              
-              // Check if our plugin is already added
-              const pluginName = fontDisplayPlugin.postcss || 'postcss-font-display-swap';
-              const alreadyAdded = plugins.some(p => {
-                if (typeof p === 'function' && p.postcssPlugin === pluginName) return true;
-                if (Array.isArray(p) && p[0] && p[0].postcssPlugin === pluginName) return true;
-                return false;
-              });
-              
-              // Add our custom plugin if not already present
-              if (!alreadyAdded) {
-                plugins.push(fontDisplayPlugin());
-                console.log('[Next.js Config] ✅ Added font-display PostCSS plugin to loader', {
-                  isServer,
-                  dev,
-                  loaderPath: use.loader
-                });
-              } else {
-                console.log('[Next.js Config] ⚠️ Font-display plugin already present in loader');
-              }
-            }
-          }
-        }
-      }
-    };
-    
-    findAndModifyPostCSSLoader(config.module.rules);
-    
-    return config;
-  },
+  // Note: Font Awesome font-display fix is handled by build script (scripts/patch-fontawesome-css.js)
+  // The script runs automatically before dev/build and patches the CSS file directly
 };
 
 module.exports = withBundleAnalyzer(nextConfig);

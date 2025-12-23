@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "patch-fontawesome": "node scripts/patch-fontawesome-css.js",
+    "dev": "npm run patch-fontawesome && next dev",
     "dev:server": "nodemon server/server.js",
     "dev:all": "concurrently \"npm run dev:server\" \"npm run dev\"",
-    "build": "next build",
+    "build": "npm run patch-fontawesome && next build",
     "start": "next start",
     "start:server": "node server/server.js",
     "lint": "next lint"
