@@ -5,18 +5,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
-
-// Dynamic import for Carousel to reduce initial bundle size
-const Carousel = dynamic(() => import('./Carousel'), {
-  ssr: true, // Important for LCP
-  loading: () => (
-    <div
-      className="relative max-w-6xl mx-auto h-[200px] md:h-[400px] rounded-xl overflow-hidden bg-gray-200 animate-pulse"
-      aria-label="טוען תמונות קרוסלה"
-    />
-  ),
-});
+import Carousel from './Carousel';
 
 export default function CarouselWrapper() {
   const [images, setImages] = useState<string[]>([]);
