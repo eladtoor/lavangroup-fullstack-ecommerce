@@ -147,9 +147,13 @@ const nextConfig = {
               // Add our custom plugin if not already present
               if (!alreadyAdded) {
                 plugins.push(fontDisplayPlugin());
-                if (dev) {
-                  console.log('[Next.js Config] Added font-display PostCSS plugin to loader');
-                }
+                console.log('[Next.js Config] ✅ Added font-display PostCSS plugin to loader', {
+                  isServer,
+                  dev,
+                  loaderPath: use.loader
+                });
+              } else {
+                console.log('[Next.js Config] ⚠️ Font-display plugin already present in loader');
               }
             }
           }
