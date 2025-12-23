@@ -2,15 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Font Awesome font-display optimization - Set CSS variable for Font Awesome */
-:root {
-  --fa-font-display: swap;
-}
-
-:root {
-  /* Tell Font Awesome to use font-display: swap on its @font-face */
-  --fa-font-display: swap;
-}
+/* Font Awesome font-display optimization is handled by PostCSS plugin */
 
 /* Hide Google Translate toolbar and elements */
 #google_translate_element {
@@ -220,25 +212,8 @@ iframe[title*="נגישות"] {
   padding-inline-start: 0;
 }
 
-/* Font Awesome font-display optimization - CRITICAL for LCP (saves 740ms) */
-/* Override Font Awesome's @font-face to add font-display: swap */
-/* This must come AFTER Font Awesome CSS is loaded (globals.css is imported after) */
-/* We use the exact filenames from the build output to override */
-@font-face {
-  font-family: 'Font Awesome 6 Free';
-  font-style: normal;
-  font-weight: 900;
-  font-display: swap !important; /* Override Font Awesome's default - saves 740ms */
-  src: url('/_next/static/media/fa-solid-900.ee698398.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Font Awesome 6 Brands';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap !important; /* Override Font Awesome's default - saves 740ms */
-  src: url('/_next/static/media/fa-brands-400.86ee2658.woff2') format('woff2');
-}
+/* Font Awesome font-display optimization is now handled by PostCSS plugin */
+/* See postcss-font-display-plugin.js - automatically adds font-display: swap to all @font-face rules */
 
 @layer components {
   /* Custom button styles matching original Tailwind config */
