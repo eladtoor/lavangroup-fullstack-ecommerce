@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css";
 import { Providers } from "./providers";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-// Load Font Awesome CSS - optimized with font-display: swap in globals.css
+// Load Font Awesome CSS FIRST
 import "@fortawesome/fontawesome-free/css/all.min.css";
+// Load globals.css AFTER Font Awesome so our font-display overrides work
+import "./globals.css";
 import dynamic from "next/dynamic";
 import GoogleTagManager from "@/components/GoogleTagManager";
 import GTranslateScript from "@/components/GTranslateScript";
