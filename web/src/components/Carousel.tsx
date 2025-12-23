@@ -3,30 +3,39 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
-export default function Carousel() {
-  const [images, setImages] = useState<string[]>([]);
+export interface CarouselProps {
+  images: string[];
+}
+
+export default function Carousel({ images }: CarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const autoSlideRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Preload images for better LCP performance
   useEffect(() => {
-    const fetchImages = async () => {
-      try {
-        const snapshot = await getDocs(collection(db, 'carouselImages'));
-        const urls = snapshot.docs.map((doc) => {
-          const originalUrl = doc.data().url;
-          const [base, rest] = originalUrl.split('/upload/');
-          return `${base}/upload/q_auto,f_auto/${rest.split('/').slice(1).join('/')}`;
-        });
-        setImages(urls);
-      } catch (error) {
-        console.error('שגיאה בטעינת תמונות הקרוסלה:', error);
-      }
-    };
-    fetchImages();
-  }, []);
+    if (images.length === 0) return;
+
+    // Preload first image immediately for LCP
+    if (images[0]) {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = images[0];
+      link.setAttribute('fetchpriority', 'high');
+      document.head.appendChild(link);
+    }
+
+    // Preload remaining images with lower priority
+    images.slice(1).forEach((url) => {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = url;
+      link.setAttribute('fetchpriority', 'low');
+      document.head.appendChild(link);
+    });
+  }, [images]);
 
   useEffect(() => {
     if (images.length > 0) {
@@ -48,7 +57,15 @@ export default function Carousel() {
     }
   };
 
-  if (!images.length) return null;
+  // Show loading skeleton if no images provided
+  if (!images || images.length === 0) {
+    return (
+      <div
+        className="relative max-w-6xl mx-auto h-[200px] md:h-[400px] rounded-xl overflow-hidden bg-gray-200 animate-pulse"
+        aria-label="טוען תמונות קרוסלה"
+      />
+    );
+  }
 
   return (
     <div
@@ -63,7 +80,9 @@ export default function Carousel() {
         fill
         className="object-contain transition-opacity duration-700 ease-in-out"
         sizes="(max-width: 768px) 100vw, 1200px"
-        priority
+        priority={currentIndex === 0}
+        fetchPriority={currentIndex === 0 ? 'high' : 'auto'}
+        loading={currentIndex === 0 ? 'eager' : 'lazy'}
       />
 
       <button

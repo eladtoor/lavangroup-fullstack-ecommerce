@@ -3,6 +3,12 @@
 import Script from 'next/script';
 import { useEffect } from 'react';
 
+declare global {
+  interface Window {
+    dataLayer: any[];
+  }
+}
+
 const GTM_ID = 'GTM-WCGRTXK2';
 const GA4_MEASUREMENT_ID = 'G-W93SPNXDKS';
 
