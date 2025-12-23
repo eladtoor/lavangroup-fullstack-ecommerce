@@ -30,7 +30,7 @@ const nextConfig = {
   poweredByHeader: false, // Remove X-Powered-By header
   // Experimental features for better performance
   experimental: {
-    optimizeCss: true, // Optimize CSS
+    // optimizeCss: true, // Disabled - causes build errors with critters
     optimizePackageImports: ['@fortawesome/fontawesome-free', 'react-toastify'], // Tree-shake unused exports
   },
   // Headers for better caching and performance
