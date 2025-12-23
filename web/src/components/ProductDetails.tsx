@@ -327,7 +327,13 @@ export default function ProductDetails({
       {product.תמונות && (
         <div className={mode === 'modal' ? 'relative w-28 h-28 sm:w-32 sm:h-32 mx-auto mt-4' : 'relative w-full h-72 md:h-96 bg-gray-50 rounded-lg overflow-hidden mb-4'}>
           <Image
-            src={product.תמונות}
+            src={
+              product.תמונות.includes('cloudinary.com') && product.תמונות.includes('/upload/')
+                ? mode === 'modal'
+                  ? product.תמונות.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:good,w_128,h_128,c_limit/')
+                  : product.תמונות.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:best,w_800,c_limit/')
+                : product.תמונות
+            }
             alt={`${product.שם}${product['תיאור קצר'] ? ' - ' + product['תיאור קצר'].slice(0, 100) : ''} | לבן גרופ`}
             title={product.שם}
             fill

@@ -17,9 +17,11 @@ export async function GET() {
     
     const images = snapshot.docs.map((doc) => {
       const originalUrl = doc.data().url;
-      // Optimize Cloudinary URLs for better performance
-      const [base, rest] = originalUrl.split('/upload/');
-      return `${base}/upload/q_auto,f_auto/${rest.split('/').slice(1).join('/')}`;
+      // Optimize Cloudinary URLs for hero/carousel images (1200px max width, good quality)
+      if (originalUrl.includes('cloudinary.com') && originalUrl.includes('/upload/')) {
+        return originalUrl.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:good,w_1200,c_limit/');
+      }
+      return originalUrl;
     });
 
     // Cache for 5 minutes to reduce Firestore reads

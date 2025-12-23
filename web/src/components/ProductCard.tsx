@@ -67,7 +67,11 @@ export default function ProductCard({
         <div className="w-full h-32 sm:h-40 bg-gray-100 flex justify-center items-center rounded-md overflow-hidden flex-shrink-0 mb-2 relative">
           {product.תמונות ? (
             <Image
-              src={product.תמונות}
+              src={
+                product.תמונות.includes('cloudinary.com') && product.תמונות.includes('/upload/')
+                  ? product.תמונות.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:good,w_300,h_300,c_limit/')
+                  : product.תמונות
+              }
               alt={`${product.שם}${product['תיאור קצר'] ? ' - ' + String(product['תיאור קצר']).slice(0, 100) : ''} | לבן גרופ`}
               title={product.שם}
               fill

@@ -72,7 +72,11 @@ export default function Category({ title, subcategories }: CategoryProps) {
               >
                 <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden mb-2">
                   <Image
-                    src={imageForCategory || fallbackImage}
+                    src={
+                      (imageForCategory || fallbackImage).includes('cloudinary.com') && (imageForCategory || fallbackImage).includes('/upload/')
+                        ? (imageForCategory || fallbackImage).replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:eco,w_160,h_160,c_limit/')
+                        : (imageForCategory || fallbackImage)
+                    }
                     alt={`${subcategory.categoryName} - ${title} | לבן גרופ חומרי בניין`}
                     title={subcategory.categoryName}
                     fill

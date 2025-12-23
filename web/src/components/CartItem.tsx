@@ -51,7 +51,11 @@ export default function CartItem({ item, onIncrease, onDecrease, onRemove }: Car
 
       <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0">
         <Image
-          src={item.image || '/placeholder-product.png'}
+          src={
+            item.image && item.image.includes('cloudinary.com') && item.image.includes('/upload/')
+              ? item.image.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:eco,w_128,h_128,c_limit/')
+              : (item.image || '/placeholder-product.png')
+          }
           alt={`${item.שם || item.baseName} - עגלת קניות | לבן גרופ`}
           title={item.שם || item.baseName}
           fill
