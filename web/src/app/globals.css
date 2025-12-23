@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Font Awesome font-display optimization - Set CSS variable for Font Awesome */
+:root {
+  --fa-font-display: swap;
+}
+
+:root {
+  /* Tell Font Awesome to use font-display: swap on its @font-face */
+  --fa-font-display: swap;
+}
+
 /* Hide Google Translate toolbar and elements */
 #google_translate_element {
   display: none !important;
