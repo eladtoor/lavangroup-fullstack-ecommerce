@@ -1,12 +1,24 @@
 const Product = require("../models/productModel");
+const CategoryImage = require("../models/categoryImageModel");
 
 const buildCategoryStructure = async (req, res) => {
   try {
-    const products = await Product.find();
+    // Fetch products and category images in parallel for better performance
+    const [products, categoryImages] = await Promise.all([
+      Product.find(),
+      CategoryImage.find(),
+    ]);
 
     if (!products || products.length === 0) {
       return res.status(404).json({ error: "No products found" });
     }
+
+    // Create a map of category images for quick lookup
+    // Format: { "categoryName": "imageUrl", "categoryName - subCategoryName": "imageUrl" }
+    const categoryImageMap = {};
+    categoryImages.forEach((catImg) => {
+      categoryImageMap[catImg.name] = catImg.image;
+    });
 
     const categoryMap = {};
 
@@ -27,6 +39,7 @@ const buildCategoryStructure = async (req, res) => {
         if (!categoryMap[mainCategory]) {
           categoryMap[mainCategory] = {
             categoryName: mainCategory,
+            categoryImage: categoryImageMap[mainCategory] || null,
             subCategories: [],
             products: [], // רשימה למוצרים בקטגוריה הראשית (ללא תתי קטגוריות)
           };
@@ -41,7 +54,12 @@ const buildCategoryStructure = async (req, res) => {
               (sc) => sc.subCategoryName === subCategory
             );
             if (!foundSubCategory) {
-              foundSubCategory = { subCategoryName: subCategory, products: [] };
+              const imageKey = `${mainCategory} - ${subCategory}`;
+              foundSubCategory = {
+                subCategoryName: subCategory,
+                categoryImage: categoryImageMap[imageKey] || null,
+                products: [],
+              };
               currentCategory.subCategories.push(foundSubCategory);
             }
 

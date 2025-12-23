@@ -62,21 +62,6 @@ export default function CategoryContent() {
     }
   }, [categories, isLoading, dispatch]);
 
-  const [categoryImages, setCategoryImages] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/category-images`)
-      .then((res) => res.json())
-      .then((data) => {
-        const imagesMap: Record<string, string> = {};
-        data.forEach((cat: { name: string; image: string }) => {
-          imagesMap[cat.name] = cat.image;
-        });
-        setCategoryImages(imagesMap);
-      })
-      .catch((err) => console.error('Error fetching category images:', err));
-  }, []);
-
   // Show loading state while fetching
   if (isLoading || !categories) {
     return (
@@ -153,9 +138,13 @@ export default function CategoryContent() {
                 currentCategory.categoryName,
                 subcategory.subCategoryName
               );
-              const imageSrc = categoryImages[`${currentCategory.categoryName} - ${subcategory.subCategoryName}`] ||
-                subcategory.products?.[0]?.תמונות ||
-                '/placeholder-product.png';
+              const categoryImage = (subcategory as any).categoryImage;
+              let imageSrc = categoryImage || '/placeholder-product.png';
+              
+              // Optimize Cloudinary URLs
+              if (imageSrc && typeof imageSrc === 'string' && imageSrc.includes('cloudinary.com') && imageSrc.includes('/upload/')) {
+                imageSrc = imageSrc.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:eco,w_128,h_128,c_limit/');
+              }
 
               return (
                 <article

@@ -1,22 +1,19 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { buildCategoryUrl } from '@/lib/category-slugs';
 
 interface Subcategory {
   categoryName: string;
+  categoryImage?: string; // Category image from API
   products?: Array<{ תמונות?: string }>; // תמונות is Hebrew for "images"
   subCategories?: Array<{
     subCategoryName: string;
+    categoryImage?: string; // Category image from API
     products: Array<{ תמונות?: string }>;
   }>;
-}
-
-interface CategoryImage {
-  name: string;
-  image: string;
 }
 
 interface CategoryProps {
@@ -26,7 +23,6 @@ interface CategoryProps {
 
 export default function Category({ title, subcategories }: CategoryProps) {
   const router = useRouter();
-  const [categoryImages, setCategoryImages] = useState<CategoryImage[]>([]);
 
   const moveToSubcategory = (subcategoryName: string) => {
     const url = buildCategoryUrl(title, subcategoryName);
@@ -37,13 +33,6 @@ export default function Category({ title, subcategories }: CategoryProps) {
     ? subcategories
     : Object.values(subcategories);
 
-  useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/category-images`)
-      .then((res) => res.json())
-      .then((data) => setCategoryImages(data))
-      .catch((err) => console.error('Error fetching category images:', err));
-  }, []);
-
   return (
     <div className="w-full">
       <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-6 pb-3 border-b-2 border-gray-300">
@@ -53,14 +42,13 @@ export default function Category({ title, subcategories }: CategoryProps) {
       <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
         {subcategoryArray.length > 0 ? (
           subcategoryArray.map((subcategory, index) => {
-            const imageForCategory = categoryImages.find(
-              (cat) => cat.name === subcategory.categoryName
-            )?.image;
-
-            const fallbackImage =
-              subcategory.subCategories?.[0]?.products[0]?.תמונות ||
-              subcategory.products?.[0]?.תמונות ||
-              '/placeholder-product.png';
+            const imageForCategory = (subcategory as any).categoryImage;
+            const finalImage = imageForCategory || '/placeholder-product.png';
+            
+            // Optimize Cloudinary URLs
+            const optimizedImage = finalImage && typeof finalImage === 'string' && finalImage.includes('cloudinary.com') && finalImage.includes('/upload/')
+              ? finalImage.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:eco,w_160,h_160,c_limit/')
+              : finalImage;
 
             return (
               <button
@@ -72,11 +60,7 @@ export default function Category({ title, subcategories }: CategoryProps) {
               >
                 <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden mb-2">
                   <Image
-                    src={
-                      (imageForCategory || fallbackImage).includes('cloudinary.com') && (imageForCategory || fallbackImage).includes('/upload/')
-                        ? (imageForCategory || fallbackImage).replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:eco,w_160,h_160,c_limit/')
-                        : (imageForCategory || fallbackImage)
-                    }
+                    src={optimizedImage}
                     alt={`${subcategory.categoryName} - ${title} | לבן גרופ חומרי בניין`}
                     title={subcategory.categoryName}
                     fill
