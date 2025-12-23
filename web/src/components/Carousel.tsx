@@ -16,7 +16,7 @@ export default function Carousel({ images }: CarouselProps) {
   useEffect(() => {
     if (images.length === 0) return;
 
-    // Preload first image immediately for LCP
+    // Preload first image immediately for LCP (already optimized from API)
     if (images[0]) {
       const link = document.createElement('link');
       link.rel = 'preload';
@@ -26,7 +26,7 @@ export default function Carousel({ images }: CarouselProps) {
       document.head.appendChild(link);
     }
 
-    // Preload remaining images with lower priority
+    // Preload remaining images with lower priority (already optimized from API)
     images.slice(1).forEach((url) => {
       const link = document.createElement('link');
       link.rel = 'preload';
@@ -83,6 +83,7 @@ export default function Carousel({ images }: CarouselProps) {
         priority={currentIndex === 0}
         fetchPriority={currentIndex === 0 ? 'high' : 'auto'}
         loading={currentIndex === 0 ? 'eager' : 'lazy'}
+        quality={currentIndex === 0 ? 85 : 75}
       />
 
       <button
