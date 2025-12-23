@@ -1,8 +1,9 @@
 /**
  * PostCSS plugin to add font-display: swap to all @font-face rules
  * This fixes Font Awesome font loading performance (saves 1,090ms)
+ * CommonJS version for Next.js compatibility
  */
-export default function fontDisplayPlugin() {
+module.exports = function fontDisplayPlugin() {
   return {
     postcssPlugin: 'postcss-font-display-swap',
     Once(root) {
@@ -24,6 +25,7 @@ export default function fontDisplayPlugin() {
       });
     },
   };
-}
+};
 
-fontDisplayPlugin.postcss = true;
+module.exports.postcss = true;
+

@@ -13,6 +13,9 @@ try {
   console.log('Bundle analyzer not available, skipping...');
 }
 
+// Load custom PostCSS plugin for font-display: swap
+const fontDisplayPlugin = require('./postcss-font-display-plugin.cjs');
+
 const nextConfig = {
   reactStrictMode: true,
   // Generate build ID to help with caching
@@ -91,6 +94,50 @@ const nextConfig = {
   // Render often installs production deps only; don't fail builds on eslint availability.
   eslint: {
     ignoreDuringBuilds: true,
+  },
+  // Webpack configuration to add custom PostCSS plugin
+  webpack: (config, { isServer }) => {
+    // Find PostCSS loader and inject our custom plugin
+    const rules = config.module.rules;
+    rules.forEach((rule) => {
+      if (rule.oneOf) {
+        rule.oneOf.forEach((oneOf) => {
+          if (oneOf.use && Array.isArray(oneOf.use)) {
+            oneOf.use.forEach((use) => {
+              if (use.loader && use.loader.includes('postcss-loader')) {
+                // Get or create postcssOptions
+                if (!use.options) use.options = {};
+                if (!use.options.postcssOptions) use.options.postcssOptions = {};
+                if (!use.options.postcssOptions.plugins) {
+                  use.options.postcssOptions.plugins = [];
+                }
+                
+                const plugins = use.options.postcssOptions.plugins;
+                
+                // Convert object to array if needed
+                if (!Array.isArray(plugins)) {
+                  const pluginsArray = [];
+                  for (const [name, options] of Object.entries(plugins)) {
+                    try {
+                      const plugin = require(name);
+                      pluginsArray.push(options ? [plugin, options] : plugin);
+                    } catch (e) {
+                      // Plugin not found, skip
+                    }
+                  }
+                  use.options.postcssOptions.plugins = pluginsArray;
+                }
+                
+                // Add our custom plugin
+                use.options.postcssOptions.plugins.push(fontDisplayPlugin());
+              }
+            });
+          }
+        });
+      }
+    });
+    
+    return config;
   },
 };
 
