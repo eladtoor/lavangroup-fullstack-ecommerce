@@ -7,6 +7,7 @@ module.exports = function fontDisplayPlugin() {
   return {
     postcssPlugin: 'postcss-font-display-swap',
     Once(root) {
+      let modifiedCount = 0;
       root.walkAtRules('font-face', (rule) => {
         // Check if font-display already exists
         let hasFontDisplay = false;
@@ -21,8 +22,14 @@ module.exports = function fontDisplayPlugin() {
             value: 'swap',
             important: false,
           });
+          modifiedCount++;
         }
       });
+      
+      // Debug logging (only in development)
+      if (process.env.NODE_ENV === 'development' && modifiedCount > 0) {
+        console.log(`[PostCSS Font Display Plugin] Added font-display: swap to ${modifiedCount} @font-face rules`);
+      }
     },
   };
 };

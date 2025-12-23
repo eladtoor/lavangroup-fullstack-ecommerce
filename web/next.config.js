@@ -96,46 +96,68 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   // Webpack configuration to add custom PostCSS plugin
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
     // Find PostCSS loader and inject our custom plugin
-    const rules = config.module.rules;
-    rules.forEach((rule) => {
-      if (rule.oneOf) {
-        rule.oneOf.forEach((oneOf) => {
-          if (oneOf.use && Array.isArray(oneOf.use)) {
-            oneOf.use.forEach((use) => {
-              if (use.loader && use.loader.includes('postcss-loader')) {
-                // Get or create postcssOptions
-                if (!use.options) use.options = {};
-                if (!use.options.postcssOptions) use.options.postcssOptions = {};
-                if (!use.options.postcssOptions.plugins) {
-                  use.options.postcssOptions.plugins = [];
-                }
-                
-                const plugins = use.options.postcssOptions.plugins;
-                
-                // Convert object to array if needed
-                if (!Array.isArray(plugins)) {
-                  const pluginsArray = [];
-                  for (const [name, options] of Object.entries(plugins)) {
-                    try {
-                      const plugin = require(name);
-                      pluginsArray.push(options ? [plugin, options] : plugin);
-                    } catch (e) {
-                      // Plugin not found, skip
-                    }
-                  }
-                  use.options.postcssOptions.plugins = pluginsArray;
-                }
-                
-                // Add our custom plugin
-                use.options.postcssOptions.plugins.push(fontDisplayPlugin());
+    // Next.js processes CSS through multiple loaders, we need to catch all of them
+    const findAndModifyPostCSSLoader = (rules) => {
+      if (!rules) return;
+      
+      for (const rule of rules) {
+        if (rule.oneOf) {
+          findAndModifyPostCSSLoader(rule.oneOf);
+        }
+        
+        if (rule.use && Array.isArray(rule.use)) {
+          for (const use of rule.use) {
+            if (use.loader && typeof use.loader === 'string' && use.loader.includes('postcss-loader')) {
+              // Get or create postcssOptions
+              if (!use.options) use.options = {};
+              if (!use.options.postcssOptions) use.options.postcssOptions = {};
+              
+              // Handle both object and array plugin formats
+              if (!use.options.postcssOptions.plugins) {
+                use.options.postcssOptions.plugins = [];
               }
-            });
+              
+              let plugins = use.options.postcssOptions.plugins;
+              
+              // Convert object to array if needed
+              if (!Array.isArray(plugins)) {
+                const pluginsArray = [];
+                for (const [name, options] of Object.entries(plugins)) {
+                  try {
+                    const plugin = require(name);
+                    pluginsArray.push(options ? [plugin, options] : plugin);
+                  } catch (e) {
+                    // Plugin not found, skip
+                  }
+                }
+                plugins = pluginsArray;
+                use.options.postcssOptions.plugins = plugins;
+              }
+              
+              // Check if our plugin is already added
+              const pluginName = fontDisplayPlugin.postcss || 'postcss-font-display-swap';
+              const alreadyAdded = plugins.some(p => {
+                if (typeof p === 'function' && p.postcssPlugin === pluginName) return true;
+                if (Array.isArray(p) && p[0] && p[0].postcssPlugin === pluginName) return true;
+                return false;
+              });
+              
+              // Add our custom plugin if not already present
+              if (!alreadyAdded) {
+                plugins.push(fontDisplayPlugin());
+                if (dev) {
+                  console.log('[Next.js Config] Added font-display PostCSS plugin to loader');
+                }
+              }
+            }
           }
-        });
+        }
       }
-    });
+    };
+    
+    findAndModifyPostCSSLoader(config.module.rules);
     
     return config;
   },
