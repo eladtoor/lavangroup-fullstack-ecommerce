@@ -57,18 +57,7 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Fade-in animation for sections */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
+/* Fade-in animation for sections - CLS optimized (opacity only, no translateY) */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -78,9 +67,24 @@ html {
   }
 }
 
-/* Apply animations */
+/* Apply animations - use opacity only to prevent layout shift */
 section {
-  animation: fadeInUp 0.8s ease-out;
+  animation: fadeIn 0.6s ease-out;
+  /* Reserve space to prevent CLS */
+  min-height: 1px;
+}
+
+/* Optimize transform animations to prevent CLS */
+[class*="hover:scale"],
+[class*="hover:-translate"] {
+  will-change: transform;
+  transform: translateZ(0); /* Force GPU acceleration */
+}
+
+/* Ensure images don't cause layout shift */
+img[fill],
+img[data-fill] {
+  object-fit: cover;
 }
 
 /* Glass morphism utility */

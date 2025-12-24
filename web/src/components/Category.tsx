@@ -58,7 +58,7 @@ export default function Category({ title, subcategories }: CategoryProps) {
                 className="flex flex-col items-center bg-white border border-gray-200 rounded-lg p-3 md:p-4 transition-all duration-200 hover:shadow-lg hover:border-orange-500"
                 onClick={() => moveToSubcategory(subcategory.categoryName)}
               >
-                <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden mb-2">
+                <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden mb-2 aspect-square">
                   <Image
                     src={optimizedImage}
                     alt={`${subcategory.categoryName} - ${title} | לבן גרופ חומרי בניין`}

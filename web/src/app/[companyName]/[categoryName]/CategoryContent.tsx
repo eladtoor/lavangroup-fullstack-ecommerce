@@ -150,9 +150,10 @@ export default function CategoryContent() {
                 <article
                   key={index}
                   className="bg-gray-100 p-4 rounded-lg shadow hover:shadow-md transition-all hover:scale-105 flex flex-col items-center"
+                  style={{ willChange: 'transform' }}
                 >
                   <Link href={href} className="flex flex-col items-center w-full">
-                  <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-gray-300 hover:border-primary transition">
+                  <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-gray-300 hover:border-primary transition aspect-square">
                     <Image
                       src={imageSrc}
                       alt={`${subcategory.subCategoryName} - ${currentCategory.categoryName} | לבן גרופ חומרי בניין`}

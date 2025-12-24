@@ -54,6 +54,7 @@ export default function ProductCard({
     >
       <article
         className="relative bg-white rounded-lg border border-gray-900 overflow-visible hover:scale-110 transition-all duration-300 hover:shadow-lg cursor-pointer p-4 flex flex-col items-center w-56 h-56 sm:w-60 sm:h-80"
+        style={{ willChange: 'transform' }}
         itemScope
         itemType="https://schema.org/Product"
       >
@@ -68,7 +69,7 @@ export default function ProductCard({
           {product.תמונות ? (
             <Image
               src={
-                product.תמונות.includes('cloudinary.com') && product.תמונות.includes('/upload/')
+                product.תמונות && typeof product.תמונות === 'string' && product.תמונות.includes('cloudinary.com') && product.תמונות.includes('/upload/')
                   ? product.תמונות.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:good,w_300,h_300,c_limit/')
                   : product.תמונות
               }

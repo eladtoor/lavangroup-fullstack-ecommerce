@@ -92,6 +92,7 @@ export default function HomePage() {
                 ) : (
                   <button
                     className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold py-3 px-10 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                    style={{ willChange: 'transform' }}
                     onClick={handleLoginClick}
                   >
                     התחבר עכשיו
@@ -145,7 +146,7 @@ export default function HomePage() {
       })()}
 
       {/* Products Section */}
-      <section className="bg-white py-12 border-b border-gray-200">
+      <section className="bg-white py-12 border-b border-gray-200" style={{ contentVisibility: 'auto' }}>
         <div className="container mx-auto px-4">
           {user && user.productDiscounts && user.productDiscounts.length > 0 ? (
             <PersonalizedDiscounts />
@@ -156,14 +157,14 @@ export default function HomePage() {
       </section>
 
       {/* About Us Section */}
-      <section className="bg-gray-50 py-12 pb-16" aria-label="אודותינו">
+      <section className="bg-gray-50 py-12 pb-16" aria-label="אודותינו" style={{ contentVisibility: 'auto' }}>
         <div className="container mx-auto px-4">
           <AboutUs />
         </div>
       </section>
 
       {/* FAQ Section - Clean White */}
-      <section className="bg-white py-12 border-b border-gray-200 fade-in-bottom" style={{ animationDelay: '1.2s' }}>
+      <section className="bg-white py-12 border-b border-gray-200" style={{ contentVisibility: 'auto' }}>
         <div className="container mx-auto px-4">
           <FAQ />
         </div>
@@ -174,6 +175,7 @@ export default function HomePage() {
         <div className="fixed bottom-24 right-5 flex flex-col items-center gap-4 z-50">
           <button
             className="bg-gradient-to-br from-green-500 to-emerald-600 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-2xl cursor-pointer hover:scale-110 hover:shadow-green-500/50 transition-all duration-300"
+            style={{ willChange: 'transform' }}
             onClick={() => setIsQuickCartOpen(true)}
             title="פתח עגלה מהירה - הוסף מוצרים בקלות"
             aria-label="פתח את העגלה המהירה"

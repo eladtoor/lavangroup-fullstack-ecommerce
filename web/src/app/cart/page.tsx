@@ -558,7 +558,11 @@ export default function CartPage() {
       const unitPrice = item.unitPrice || 0;
       const totalPrice = unitPrice * quantity;
       const materialGroup = item.materialGroup || '';
-      const imageUrl = item.image || item.תמונות || '/default-image.jpg';
+      let imageUrl = item.image || item.תמונות || '/default-image.jpg';
+      // Optimize Cloudinary URLs for PDF images
+      if (imageUrl.includes('cloudinary.com') && imageUrl.includes('/upload/')) {
+        imageUrl = imageUrl.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:good,w_120,h_120,c_limit/');
+      }
       const comment = item.comment || '';
 
       return `

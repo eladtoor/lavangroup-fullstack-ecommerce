@@ -46,8 +46,11 @@ export default function CarouselWrapper() {
       const snapshot = await getDocs(collection(db, 'carouselImages'));
       const urls = snapshot.docs.map((doc) => {
         const originalUrl = doc.data().url;
-        const [base, rest] = originalUrl.split('/upload/');
-        return `${base}/upload/q_auto,f_auto/${rest.split('/').slice(1).join('/')}`;
+        // Optimize Cloudinary URLs for hero/carousel images (1200px max width, good quality)
+        if (originalUrl.includes('cloudinary.com') && originalUrl.includes('/upload/')) {
+          return originalUrl.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:good,w_1200,c_limit/');
+        }
+        return originalUrl;
       });
       
       if (urls.length > 0) {

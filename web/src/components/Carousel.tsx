@@ -84,6 +84,7 @@ export default function Carousel({ images }: CarouselProps) {
         fetchPriority={currentIndex === 0 ? 'high' : 'auto'}
         loading={currentIndex === 0 ? 'eager' : 'lazy'}
         quality={currentIndex === 0 ? 85 : 75}
+        style={{ willChange: currentIndex === 0 ? 'opacity' : 'auto' }}
       />
 
       <button

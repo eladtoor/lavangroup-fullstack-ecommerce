@@ -97,7 +97,11 @@ export default function QuickCart() {
                 <li key={mergedItem.cartItemId} className="flex items-center justify-between py-3">
                   <div className="flex items-center">
                     <img
-                      src={mergedItem.image}
+                      src={
+                        mergedItem.image && mergedItem.image.includes('cloudinary.com') && mergedItem.image.includes('/upload/')
+                          ? mergedItem.image.replace(/\/upload\/([^\/]*\/)?/, '/upload/f_auto,q_auto:eco,w_64,h_64,c_limit/')
+                          : mergedItem.image
+                      }
                       alt={`${mergedItem.name} - עגלת קניות מהירה | לבן גרופ`}
                       title={mergedItem.name}
                       className="w-16 h-16 object-cover rounded-md mr-4"
