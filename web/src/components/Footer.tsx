@@ -8,8 +8,8 @@ export default function Footer() {
   const user = useAppSelector((state) => state.user?.user);
   
   return (
-    <footer className="bg-gray-900 text-white py-6 text-center" dir="rtl">
-      <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+    <footer className="bg-gray-900 text-white py-6 text-center min-h-[300px] flex flex-col justify-between" dir="rtl">
+      <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-6 flex-1">
         {/* עמודת יצירת קשר */}
         <div className="flex flex-col items-center">
           <h3 className="text-xl font-bold border-b-2 border-yellow-400 pb-1 mb-3">צור קשר 📞</h3>
@@ -73,6 +73,7 @@ export default function Footer() {
               title="עקוב אחרינו בפייסבוק"
               aria-label="עמוד הפייסבוק של לבן גרופ"
               className="hover:text-yellow-400 hover:scale-110 transition"
+              style={{ willChange: 'transform' }}
             >
               <FaFacebook />
             </a>
@@ -83,6 +84,7 @@ export default function Footer() {
               title="עקוב אחרינו באינסטגרם"
               aria-label="עמוד האינסטגרם של לבן גרופ"
               className="hover:text-yellow-400 hover:scale-110 transition"
+              style={{ willChange: 'transform' }}
             >
               <FaInstagram />
             </a>
@@ -93,6 +95,7 @@ export default function Footer() {
               title="שלח לנו הודעת וואטסאפ - 050-5342813"
               aria-label="פתח שיחת וואטסאפ עם לבן גרופ"
               className="hover:text-yellow-400 hover:scale-110 transition"
+              style={{ willChange: 'transform' }}
             >
               <FaWhatsapp />
             </a>
