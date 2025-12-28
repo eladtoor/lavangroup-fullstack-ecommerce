@@ -11,13 +11,15 @@ type Props = {
 export default async function ProductModalRoute({ params }: Props) {
   // Check if this is a hard navigation (direct access from external source)
   // Modal should only render on soft navigation (client-side routing within the app)
-  const headersList = headers();
+  const headersList = await headers();
   const referer = headersList.get('referer');
   const host = headersList.get('host');
 
-  // If no referer or referer is from external domain, don't render modal
-  // This prevents modal from showing when accessing directly from Google, bookmarks, etc.
-  if (!referer || !host || !referer.includes(host)) {
+  // Only render modal if navigating from within our own site (soft navigation)
+  // If no referer or referer is external, don't show modal
+  const isSoftNavigation = referer && host && referer.includes(host);
+
+  if (!isSoftNavigation) {
     return null;
   }
 
