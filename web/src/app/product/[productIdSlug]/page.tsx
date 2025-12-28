@@ -67,8 +67,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ProductPage({ params }: Props) {
+  console.log('ProductPage - Rendering product page for:', params.productIdSlug);
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lavangroup.co.il';
   const { id, slug } = parseProductIdSlug(params.productIdSlug);
+
+  console.log('ProductPage - Parsed ID:', id, 'Slug:', slug);
 
   if (!isMongoObjectId(id)) notFound();
 
@@ -84,10 +87,15 @@ export default async function ProductPage({ params }: Props) {
   const canonicalSlug = slugifyProductName(product.שם);
   const canonicalPath = `/product/${product._id}-${canonicalSlug}`;
 
+  console.log('ProductPage - Canonical slug:', canonicalSlug, 'Current slug:', slug);
+
   // Enforce ONE canonical URL (id + correct slug).
   if (!slug || slug !== canonicalSlug) {
+    console.log('ProductPage - Redirecting to canonical path:', canonicalPath);
     permanentRedirect(canonicalPath);
   }
+
+  console.log('ProductPage - Rendering product:', product.שם);
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
@@ -110,6 +118,9 @@ export default async function ProductPage({ params }: Props) {
 
   return (
     <main className="min-h-screen max-w-4xl mx-auto pt-32 md:pt-36 p-4 sm:p-6" dir="rtl">
+      <div style={{ background: 'yellow', padding: '10px', marginBottom: '10px' }}>
+        DEBUG: Product Page Rendered - {product.שם}
+      </div>
       <StructuredData data={breadcrumbJsonLd} />
       <ProductSchema
         product={product}
