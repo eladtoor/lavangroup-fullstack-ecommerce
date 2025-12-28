@@ -8,18 +8,26 @@ export default function ClientModalWrapper({ product }: { product: Product }) {
   const [shouldRenderModal, setShouldRenderModal] = useState(false);
 
   useEffect(() => {
-    // Simple detection: check if we came from the same site
-    // For hard navigation from external sources (Google, direct URL), document.referrer will be external or empty
-    // For client-side navigation within the app, referrer will be from our domain
+    // Use sessionStorage to track if user has been on the site
+    // This persists across client-side navigations but clears when browser is closed
+    const hasVisitedBefore = sessionStorage.getItem('hasVisited');
     const referrer = document.referrer;
     const currentHost = window.location.host;
 
+    console.log('ClientModalWrapper - hasVisitedBefore:', hasVisitedBefore);
+    console.log('ClientModalWrapper - referrer:', referrer);
+    console.log('ClientModalWrapper - currentHost:', currentHost);
+
+    // Mark that we've visited the site
+    sessionStorage.setItem('hasVisited', 'true');
+
     // Show modal if:
-    // 1. There's a referrer AND it's from our own site
-    // 2. OR if there's browser history (meaning user navigated within the site)
-    const isInternalNavigation =
-      (referrer && referrer.includes(currentHost)) ||
-      (window.history.length > 2 && !referrer.includes('google'));
+    // 1. User has visited before in this session (indicates internal navigation)
+    // 2. AND referrer is from our site (extra validation)
+    const isInternalNavigation = hasVisitedBefore === 'true' ||
+      (referrer && referrer.includes(currentHost));
+
+    console.log('ClientModalWrapper - isInternalNavigation:', isInternalNavigation);
 
     if (isInternalNavigation) {
       setShouldRenderModal(true);
@@ -27,6 +35,8 @@ export default function ClientModalWrapper({ product }: { product: Product }) {
       setShouldRenderModal(false);
     }
   }, []);
+
+  console.log('ClientModalWrapper - shouldRenderModal:', shouldRenderModal);
 
   if (!shouldRenderModal) {
     return null;
