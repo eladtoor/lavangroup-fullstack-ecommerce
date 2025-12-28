@@ -8,28 +8,24 @@ export default function ClientModalWrapper({ product }: { product: Product }) {
   const [shouldRenderModal, setShouldRenderModal] = useState(false);
 
   useEffect(() => {
-    // Check if this was a true client-side navigation (soft navigation)
-    // by checking the navigation type and referrer
-    const navigationEntries = window.performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+    // Simple detection: check if we came from the same site
+    // For hard navigation from external sources (Google, direct URL), document.referrer will be external or empty
+    // For client-side navigation within the app, referrer will be from our domain
+    const referrer = document.referrer;
+    const currentHost = window.location.host;
 
-    if (navigationEntries.length > 0) {
-      const navigationType = navigationEntries[0].type;
+    // Show modal if:
+    // 1. There's a referrer AND it's from our own site
+    // 2. OR if there's browser history (meaning user navigated within the site)
+    const isInternalNavigation =
+      (referrer && referrer.includes(currentHost)) ||
+      (window.history.length > 2 && !referrer.includes('google'));
 
-      // Only show modal on 'navigate' type with valid browser history
-      // Don't show on 'reload', 'back_forward', or initial page load
-      if (navigationType === 'navigate' && window.history.length > 1) {
-        // Additional check: ensure we came from the same origin
-        const referrer = document.referrer;
-        if (referrer && referrer.includes(window.location.host)) {
-          setShouldRenderModal(true);
-          return;
-        }
-      }
+    if (isInternalNavigation) {
+      setShouldRenderModal(true);
+    } else {
+      setShouldRenderModal(false);
     }
-
-    // If we get here, this is a hard navigation (from external source)
-    // Don't show modal - the page route will handle rendering
-    setShouldRenderModal(false);
   }, []);
 
   if (!shouldRenderModal) {
