@@ -89,9 +89,12 @@ export default async function ProductPage({ params }: Props) {
 
   console.log('ProductPage - Canonical slug:', canonicalSlug, 'Current slug:', slug);
 
-  // Enforce ONE canonical URL (id + correct slug).
-  if (!slug || slug !== canonicalSlug) {
-    console.log('ProductPage - Redirecting to canonical path:', canonicalPath);
+  // NOTE: We don't redirect for slug mismatches anymore to prevent redirect loops
+  // This happens when product names change after Google indexes them
+  // The canonical URL is still set in metadata for SEO
+  // Only redirect if there's NO slug at all
+  if (!slug) {
+    console.log('ProductPage - No slug, redirecting to canonical path:', canonicalPath);
     permanentRedirect(canonicalPath);
   }
 
