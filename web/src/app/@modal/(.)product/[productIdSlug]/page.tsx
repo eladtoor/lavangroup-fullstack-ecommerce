@@ -15,13 +15,23 @@ export default async function ProductModalRoute({ params }: Props) {
   const referer = headersList.get('referer');
   const host = headersList.get('host');
 
+  // Debug logging
+  console.log('Modal Route - Referer:', referer);
+  console.log('Modal Route - Host:', host);
+  console.log('Modal Route - User Agent:', headersList.get('user-agent'));
+
   // Only render modal if navigating from within our own site (soft navigation)
   // If no referer or referer is external, don't show modal
   const isSoftNavigation = referer && host && referer.includes(host);
 
+  console.log('Modal Route - Is soft navigation:', isSoftNavigation);
+
   if (!isSoftNavigation) {
+    console.log('Modal Route - Returning null (not rendering modal)');
     return null;
   }
+
+  console.log('Modal Route - Rendering modal');
 
   const { id, slug } = parseProductIdSlug(params.productIdSlug);
   if (!isMongoObjectId(id)) notFound();
