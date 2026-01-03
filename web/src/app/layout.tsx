@@ -91,10 +91,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-  modal,
 }: Readonly<{
   children: React.ReactNode;
-  modal: React.ReactNode;
 }>) {
   return (
     <html lang="he" dir="rtl" className={inter.variable}>
@@ -104,7 +102,6 @@ export default function RootLayout({
           <GTranslateScript />
           <NavBar />
           <main className="flex-grow">{children}</main>
-          {modal}
           <Footer />
           <FloatingWhatsAppButton />
           <AccessibilityWidget />

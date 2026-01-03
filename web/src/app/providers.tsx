@@ -42,6 +42,11 @@ function RevalidationHandler() {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
+    // Clean up old modal localStorage key (removed modal feature)
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('lavangroup_visited');
+    }
+
     // Initialize Firebase auth listener
     initializeFirebaseAuth();
 

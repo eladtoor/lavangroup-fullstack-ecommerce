@@ -3,13 +3,15 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import ProductDetails from '@/components/ProductDetails';
 import ProductSchema from '@/components/ProductSchema';
 import StructuredData from '@/components/StructuredData';
-import { fetchProductById } from '@/lib/api';
+import Breadcrumbs from '@/components/Breadcrumbs';
+import { fetchProductById, fetchCategories } from '@/lib/api';
 import {
   buildProductCanonicalPath,
   isMongoObjectId,
   parseProductIdSlug,
   slugifyProductName,
 } from '@/lib/product-slug';
+import { buildCategoryUrl } from '@/lib/category-slugs';
 
 type Props = {
   params: { productIdSlug: string };
@@ -92,7 +94,8 @@ export default async function ProductPage({ params }: Props) {
     permanentRedirect(canonicalPath);
   }
 
-  const breadcrumbJsonLd = {
+  // Build breadcrumb schema from breadcrumb items
+  let breadcrumbJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
@@ -111,8 +114,64 @@ export default async function ProductPage({ params }: Props) {
     ],
   };
 
+  // Build full breadcrumb path by finding which category contains this product
+  const breadcrumbItems = [{ label: 'דף הבית', href: '/' }];
+
+  try {
+    const categoriesData = await fetchCategories();
+    const categories: any[] = Array.isArray(categoriesData)
+      ? categoriesData
+      : Object.values(categoriesData || {});
+
+    // Find which category and subcategory this product belongs to
+    let foundProduct = false;
+    for (const category of categories) {
+      // Check if product is in main category products
+      if (category.products?.some((p: any) => p._id === product._id || p.productId === product._id)) {
+        breadcrumbItems.push({
+          label: category.categoryName,
+          href: buildCategoryUrl('טמבור', category.categoryName),
+        });
+        foundProduct = true;
+        break;
+      }
+
+      // Check subcategories
+      if (category.subCategories && Array.isArray(category.subCategories)) {
+        for (const subcategory of category.subCategories) {
+          if (subcategory.products?.some((p: any) => p._id === product._id || p.productId === product._id)) {
+            breadcrumbItems.push({
+              label: category.categoryName,
+              href: buildCategoryUrl('טמבור', category.categoryName),
+            });
+            breadcrumbItems.push({
+              label: subcategory.subCategoryName,
+              href: buildCategoryUrl('טמבור', category.categoryName, subcategory.subCategoryName),
+            });
+            foundProduct = true;
+            break;
+          }
+        }
+        if (foundProduct) break;
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching categories for breadcrumbs:', error);
+  }
+
+  // Add product name as final breadcrumb
+  breadcrumbItems.push({ label: product.שם });
+
+  // Update breadcrumb schema with full path
+  breadcrumbJsonLd.itemListElement = breadcrumbItems.map((item, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name: item.label,
+    item: item.href ? `${baseUrl}${item.href}` : `${baseUrl}${canonicalPath}`,
+  }));
+
   return (
-    <main className="min-h-screen max-w-4xl mx-auto pt-32 md:pt-36 p-4 sm:p-6" dir="rtl">
+    <main className="min-h-screen max-w-6xl mx-auto pt-36 md:pt-40 pb-12 px-4 sm:px-6" dir="rtl">
       <StructuredData data={breadcrumbJsonLd} />
       <ProductSchema
         product={product}
@@ -120,6 +179,8 @@ export default async function ProductPage({ params }: Props) {
         availability="InStock"
         url={`${baseUrl}${canonicalPath}`}
       />
+
+      <Breadcrumbs items={breadcrumbItems} />
 
       <ProductDetails product={product} mode="page" priority />
     </main>

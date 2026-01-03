@@ -15,10 +15,6 @@ export default function ClientModalWrapper({ product }: { product: Product }) {
     const referrer = document.referrer;
     const currentHost = window.location.host;
 
-    console.log('ClientModalWrapper - visitData:', visitData);
-    console.log('ClientModalWrapper - referrer:', referrer);
-    console.log('ClientModalWrapper - currentHost:', currentHost);
-
     let hasVisitedBefore = false;
 
     if (visitData) {
@@ -43,17 +39,8 @@ export default function ClientModalWrapper({ product }: { product: Product }) {
     const isInternalNavigation = hasVisitedBefore ||
       (referrer && referrer.includes(currentHost));
 
-    console.log('ClientModalWrapper - hasVisitedBefore:', hasVisitedBefore);
-    console.log('ClientModalWrapper - isInternalNavigation:', isInternalNavigation);
-
-    if (isInternalNavigation) {
-      setShouldRenderModal(true);
-    } else {
-      setShouldRenderModal(false);
-    }
+    setShouldRenderModal(isInternalNavigation);
   }, []);
-
-  console.log('ClientModalWrapper - shouldRenderModal:', shouldRenderModal);
 
   if (!shouldRenderModal) {
     return null;
