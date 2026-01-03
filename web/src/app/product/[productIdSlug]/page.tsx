@@ -115,7 +115,7 @@ export default async function ProductPage({ params }: Props) {
   };
 
   // Build full breadcrumb path by finding which category contains this product
-  const breadcrumbItems = [{ label: 'דף הבית', href: '/' }];
+  const breadcrumbItems: Array<{ label: string; href?: string }> = [{ label: 'דף הבית', href: '/' }];
 
   try {
     const categoriesData = await fetchCategories();
