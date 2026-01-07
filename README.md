@@ -1,51 +1,55 @@
-# 🛍️ Hybrid E-Commerce Admin Dashboard
+# Lavangroup E-Commerce Platform
 
-A full-stack web application for managing an online store. Includes admin panel, product & user management, secure payments, and custom discounts — all built with React, Node.js, MongoDB, and Firebase.
+A production-ready full-stack e-commerce platform for building materials and paints. Built with Next.js 14, Node.js, MongoDB, and Firebase.
 
-## 🚀 Live Demo
-🌐 [www.lavangroup.co.il](https://www.lavangroup.co.il)
+**Live Site:** [www.lavangroup.co.il](https://www.lavangroup.co.il)
 
-## ✨ Features
-- Role-based user access (Admin, Agent, Customer)
-- Dynamic product creation with attributes & variations
-- Discount engine (global, per-user, per-product)
-- Secure Stripe payments integration
-- Admin dashboard for orders, users, categories, and analytics
-- Google Translate integration for multi-language support
-- Real-time updates via WebSockets
+## Tech Stack
 
-## 🛠 Tech Stack
-
-![React](https://img.shields.io/badge/-React-61DAFB?logo=react&logoColor=white&style=flat)
+![Next.js](https://img.shields.io/badge/-Next.js_14-000000?logo=next.js&logoColor=white&style=flat)
+![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?logo=typescript&logoColor=white&style=flat)
 ![Node.js](https://img.shields.io/badge/-Node.js-339933?logo=node.js&logoColor=white&style=flat)
-![Firebase](https://img.shields.io/badge/-Firebase-FFCA28?logo=firebase&logoColor=white&style=flat)
 ![MongoDB](https://img.shields.io/badge/-MongoDB-47A248?logo=mongodb&logoColor=white&style=flat)
-![Tailwind](https://img.shields.io/badge/-Tailwind-38B2AC?logo=tailwind-css&logoColor=white&style=flat)
-![Redux](https://img.shields.io/badge/-Redux-764ABC?logo=redux&logoColor=white&style=flat)
+![Firebase](https://img.shields.io/badge/-Firebase-FFCA28?logo=firebase&logoColor=white&style=flat)
+![Tailwind](https://img.shields.io/badge/-Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white&style=flat)
+![Redux](https://img.shields.io/badge/-Redux_Toolkit-764ABC?logo=redux&logoColor=white&style=flat)
 
-## ⚙️ Installation
+## Key Features
 
-```bash
-git clone https://github.com/eladtoor/hybrid-app.git
-cd hybrid-app
+- **Server-Side Rendering** - Next.js 14 App Router with SSR/SSG for optimal SEO and performance
+- **Admin Dashboard** - Full product, category, and order management with role-based access
+- **Dynamic Product System** - Support for variable products with attributes and pricing
+- **Real-time Updates** - WebSocket integration for live data synchronization
+- **SEO Optimized** - Dynamic meta tags, structured data, and semantic HTML
+- **Payment Integration** - Secure checkout with Stripe
+- **Multi-language Support** - Google Translate integration
 
-# Backend
-cd server
-npm install
-npm run dev
+## Architecture
 
-# Frontend (in separate terminal)
-cd ../web
-npm install
-npm run dev
+```
+├── web/          # Next.js 14 frontend (App Router, TypeScript)
+├── server/       # Node.js + Express API
+└── mobile/       # React Native app (optional)
 ```
 
-⚠️ Make sure to add `.env` files in both `server` and `web` folders with your Firebase, MongoDB, and Stripe credentials.
+## Quick Start
 
-## 📸 Screenshots  
-*(Coming soon – will include dashboard, product form, and orders view)*
+```bash
+# Clone repository
+git clone https://github.com/eladtoor/lavangroup-fullstack-ecommerce.git
 
-## 📫 Contact  
-GitHub: [eladtoor](https://github.com/eladtoor)  
-LinkedIn: [Elad Toorgeman](https://www.linkedin.com/in/elad-toorgeman-3a27b8233)  
-Email: [eladtoorgeman@gmail.com](mailto:eladtoorgeman@gmail.com)
+# Install dependencies
+cd server && npm install
+cd ../web && npm install
+
+# Start development servers
+# Terminal 1: cd server && npm run dev
+# Terminal 2: cd web && npm run dev
+```
+
+Requires `.env` files with MongoDB, Firebase, and Stripe credentials.
+
+## Contact
+
+**Elad Toorgeman**
+[LinkedIn](https://www.linkedin.com/in/elad-toorgeman-3a27b8233) | [GitHub](https://github.com/eladtoor) | [eladtoorgeman@gmail.com](mailto:eladtoorgeman@gmail.com)
