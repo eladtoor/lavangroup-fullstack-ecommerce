@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { adminPost } from '@/utils/adminApi';
 
 interface SeoText {
   _id?: string;
@@ -26,6 +27,7 @@ export default function CategorySeoTextManager() {
 
   const fetchSeoTexts = async () => {
     try {
+      // GET requests are public (for frontend metadata)
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/category-seo-text`);
       if (response.ok) {
         const data = await response.json();
@@ -43,22 +45,20 @@ export default function CategorySeoTextManager() {
 
     setSaving(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/category-seo-text`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingItem),
-      });
+      // Use authenticated POST for admin operations
+      const response = await adminPost('/api/category-seo-text', editingItem);
 
       if (response.ok) {
         await fetchSeoTexts();
         setEditingItem(null);
         alert('הטקסט נשמר בהצלחה!');
       } else {
-        alert('שגיאה בשמירת הטקסט');
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.message || 'שגיאה בשמירת הטקסט');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving SEO text:', error);
-      alert('שגיאה בשמירת הטקסט');
+      alert(error.message || 'שגיאה בשמירת הטקסט');
     } finally {
       setSaving(false);
     }

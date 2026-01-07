@@ -1,0 +1,86 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is admin (via custom claim)
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // Helper function to check if user owns this document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper function to check if request is trying to modify protected fields
+    function isModifyingProtectedFields() {
+      let protectedFields = ['isAdmin', 'userType', 'role', 'permissions', 'admin'];
+      let incomingData = request.resource.data;
+      let existingData = resource.data;
+
+      // Check if any protected field is being changed
+      return (
+        ('isAdmin' in incomingData && incomingData.isAdmin != existingData.get('isAdmin', false)) ||
+        ('userType' in incomingData && incomingData.userType != existingData.get('userType', 'רגיל')) ||
+        ('role' in incomingData && incomingData.role != existingData.get('role', null)) ||
+        ('permissions' in incomingData && incomingData.permissions != existingData.get('permissions', null)) ||
+        ('admin' in incomingData && incomingData.admin != existingData.get('admin', false))
+      );
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Anyone can read their own document, admins can read all
+      allow read: if isOwner(userId) || isAdmin();
+
+      // Users can create their own document (during registration)
+      allow create: if isOwner(userId) && !request.resource.data.get('isAdmin', false);
+
+      // Users can update their own document, but NOT protected fields
+      // Admins can update any document including protected fields
+      allow update: if isAdmin() || (isOwner(userId) && !isModifyingProtectedFields());
+
+      // Only admins can delete user documents
+      allow delete: if isAdmin();
+
+      // Subcollections under user (purchases, etc.)
+      match /{subcollection}/{document=**} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Carts collection
+    match /carts/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // Carousel collection (public read, admin write)
+    match /carousel/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Category images (public read, admin write)
+    match /categoryImages/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Site settings (public read, admin write)
+    match /siteSettings/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Default deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

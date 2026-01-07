@@ -8,6 +8,7 @@ import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 import CategoryImageManager from '@/components/CategoryImageManager';
 import CategorySeoTextManager from '@/components/CategorySeoTextManager';
 import Breadcrumbs from '@/components/Breadcrumbs';
+import { adminPut } from '@/utils/adminApi';
 import {
   handleSearch,
   fetchCategories,
@@ -126,17 +127,17 @@ function AdminPanelContent() {
 
   const handleSaveStats = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/site-stats`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(siteStats),
-      });
+      // Use authenticated PUT for admin operations
+      const response = await adminPut('/api/site-stats', siteStats);
 
-      if (!response.ok) throw new Error('Failed to update site stats');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to update site stats');
+      }
       alert('סטטיסטיקות עודכנו בהצלחה!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating site stats:', error);
-      alert('שגיאה בעדכון הסטטיסטיקות');
+      alert(error.message || 'שגיאה בעדכון הסטטיסטיקות');
     }
   };
 
@@ -157,32 +158,30 @@ function AdminPanelContent() {
         const minPrice = updatedValues.minPrice ?? group.minPrice;
         const transportationPrice = updatedValues.transportationPrice ?? group.transportationPrice;
 
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/materialGroups`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            groupName: group.groupName,
-            minPrice,
-            transportationPrice,
-          }),
+        // Use authenticated PUT for admin operations
+        const response = await adminPut('/api/materialGroups', {
+          groupName: group.groupName,
+          minPrice,
+          transportationPrice,
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to update ${group.groupName}`);
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `Failed to update ${group.groupName}`);
         }
       });
 
       await Promise.all(updates);
       alert('מחירים עודכנו בהצלחה!');
 
-      // Refresh data
+      // Refresh data (GET is public)
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/materialGroups`);
       const data = await response.json();
       setMaterialGroups(data);
       setEditedPrices({});
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving changes:', error);
-      alert('שגיאה בעדכון המחירים');
+      alert(error.message || 'שגיאה בעדכון המחירים');
     }
   };
 

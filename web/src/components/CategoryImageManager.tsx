@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { uploadImageToCloudinary } from '@/lib/utils/cloudinaryUpload';
+import { adminPost } from '@/utils/adminApi';
 
 interface SubCategory {
   subCategoryName: string;
@@ -43,17 +44,22 @@ export default function CategoryImageManager({ organizedCategories }: CategoryIm
       setUploading(categoryName);
       const imageUrl = await uploadImageToCloudinary(file);
 
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/category-images`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: categoryName, image: imageUrl }),
+      // Use authenticated POST for admin operations
+      const response = await adminPost('/api/category-images', {
+        name: categoryName,
+        image: imageUrl,
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to update image');
+      }
 
       setCategoryImages((prev) => ({ ...prev, [categoryName]: imageUrl }));
       alert('תמונה עודכנה בהצלחה לקטגוריה!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ שגיאה בהעלאת תמונה לקטגוריה:', error);
-      alert('שגיאה בהעלאה');
+      alert(error.message || 'שגיאה בהעלאה');
     } finally {
       setUploading(null);
     }

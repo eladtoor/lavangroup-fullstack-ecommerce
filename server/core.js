@@ -11,6 +11,14 @@ const cors = require("cors");
 const WebSocket = require("ws");
 const { buildCategoryStructure } = require("./controllers/categoryController");
 
+// Rate Limiting
+const {
+  generalLimiter,
+  authLimiter,
+  paymentLimiter,
+  emailLimiter,
+} = require("./middleware/rateLimiter");
+
 // Routes
 const userRoutes = require("./routes/userRoutes");
 const productRoutes = require("./routes/productRoutes");
@@ -81,12 +89,18 @@ function setupMiddleware(app) {
 
 // ============ ROUTES SETUP ============
 function setupRoutes(app) {
-  app.use("/api/users", userRoutes);
+  // Apply general rate limiting to all API routes
+  app.use("/api", generalLimiter);
+
+  // Apply specific rate limits to sensitive routes
+  app.use("/api/users", authLimiter, userRoutes);
+  app.use("/api/payment", paymentLimiter, paymentRoutes);
+  app.use("/api/email", emailLimiter, emailRoutes);
+
+  // Regular routes
   app.use("/api/products", productRoutes);
   app.use("/api", categoryRoutes);
   app.use("/api/materialGroups", materialGroupRoutes);
-  app.use("/api/payment", paymentRoutes);
-  app.use("/api/email", emailRoutes);
   app.use("/api/category-images", categoryImagesRoutes);
   app.use("/api/images", imageProxyRoutes);
   app.use("/api/site-stats", siteStatsRoutes);

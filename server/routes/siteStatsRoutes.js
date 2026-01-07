@@ -3,12 +3,13 @@ const {
   getSiteStats,
   updateSiteStats,
 } = require("../controllers/siteStatsController");
+const { adminOnly } = require("../middleware/authMiddleware");
 const router = express.Router();
 
-// GET site stats
+// Public: GET site stats
 router.get("/", getSiteStats);
 
-// PUT update site stats (For Admin)
-router.put("/", updateSiteStats);
+// Admin-only: PUT update site stats
+router.put("/", adminOnly, updateSiteStats);
 
 module.exports = router;

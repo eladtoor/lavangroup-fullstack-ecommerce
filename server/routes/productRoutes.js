@@ -1,20 +1,15 @@
 const express = require("express");
 const router = express.Router();
 const productController = require("../controllers/productController");
+const { adminOnly } = require("../middleware/authMiddleware");
 
-// ראוט ליצירת מוצר חדש
-router.post("/create", productController.createProduct);
-//ראוט לקבלת כל המוצרים
-
+// Public routes
 router.get("/getAll", productController.getAllProducts);
-
-// ראוט לקבלת פרטי מוצר לפי מזהה
 router.get("/:id", productController.getProduct);
 
-// ראוט לעדכון מוצר לפי מזהה
-router.put("/update/:id", productController.updateProduct);
-
-// ראוט למחיקת מוצר לפי מזהה
-router.delete("/delete/:id", productController.deleteProduct);
+// Admin-only routes (protected)
+router.post("/create", adminOnly, productController.createProduct);
+router.put("/update/:id", adminOnly, productController.updateProduct);
+router.delete("/delete/:id", adminOnly, productController.deleteProduct);
 
 module.exports = router;

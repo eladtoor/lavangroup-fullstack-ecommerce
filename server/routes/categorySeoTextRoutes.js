@@ -2,8 +2,9 @@
 const express = require("express");
 const router = express.Router();
 const CategorySeoText = require("../models/categorySeoTextModel");
+const { adminOnly } = require("../middleware/authMiddleware");
 
-// Get all SEO texts
+// Get all SEO texts (public for frontend metadata)
 router.get("/", async (req, res) => {
   try {
     const seoTexts = await CategorySeoText.find();
@@ -28,8 +29,8 @@ router.get("/:name", async (req, res) => {
   }
 });
 
-// Create or update SEO text (upsert)
-router.post("/", async (req, res) => {
+// Admin-only: Create or update SEO text (upsert)
+router.post("/", adminOnly, async (req, res) => {
   try {
     const { name, seoTitle, seoDescription, seoContent, type, parentCategory } = req.body;
 
@@ -55,8 +56,8 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Delete SEO text
-router.delete("/:name", async (req, res) => {
+// Admin-only: Delete SEO text
+router.delete("/:name", adminOnly, async (req, res) => {
   try {
     const { name } = req.params;
     const decodedName = decodeURIComponent(name);

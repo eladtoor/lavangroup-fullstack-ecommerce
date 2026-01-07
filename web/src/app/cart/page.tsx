@@ -231,8 +231,6 @@ export default function CartPage() {
   };
 
   const handlePayment = async (purchaseData: any, cartDiscount: number, originalTotalPrice: number) => {
-    const groupPrivateToken = process.env.NEXT_PUBLIC_GROUP_PRIVATE_TOKEN;
-
     const formatCurrency = (amount: number) => {
       const formatter = new Intl.NumberFormat('he-IL', {
         style: 'currency',
@@ -319,7 +317,7 @@ export default function CartPage() {
     });
 
     const requestData = {
-      GroupPrivateToken: groupPrivateToken,
+      // Note: GroupPrivateToken is added server-side for security
       Items: items,
       Currency: 1, // ILS
       SaleType: 1, // Immediate transaction
@@ -328,7 +326,8 @@ export default function CartPage() {
       IPNURL: `${window.location.origin}/api/payment-ipn`,
       CustomerFirstName: firstName,
       CustomerLastName: lastName,
-      EmailAddress: user?.email || 'guest@example.com'
+      EmailAddress: user?.email || 'guest@example.com',
+      UserId: user?.uid || null // For server-side price validation
     };
 
     const BASE_URL = process.env.NEXT_PUBLIC_API_URL;

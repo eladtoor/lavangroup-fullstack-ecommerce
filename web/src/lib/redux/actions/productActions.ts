@@ -1,6 +1,7 @@
 import { AppDispatch } from '../store';
 import { Product } from '../reducers/productReducer';
 import { getWebSocket } from '@/lib/websocket';
+import { adminPost, adminPut, adminDelete } from '@/utils/adminApi';
 
 const getBaseUrl = () =>
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
@@ -73,16 +74,13 @@ export const revalidateProductsOnFocus = () => async (dispatch: AppDispatch) => 
   }
 };
 
-// Create a New Product
+// Create a New Product (Admin only - uses authenticated request)
 export const createProduct = (newProductData: Partial<Product>) => async (dispatch: AppDispatch) => {
   dispatch({ type: 'CREATE_PRODUCT_REQUEST' });
 
   try {
-    const response = await fetch(`${getBaseUrl()}/api/products/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newProductData),
-    });
+    // Use authenticated POST for admin operations
+    const response = await adminPost('/api/products/create', newProductData);
 
     const data = await response.json();
 
@@ -107,16 +105,13 @@ export const createProduct = (newProductData: Partial<Product>) => async (dispat
   }
 };
 
-// Update a Product
+// Update a Product (Admin only - uses authenticated request)
 export const updateProduct = (updatedProduct: any) => async (dispatch: AppDispatch) => {
   dispatch({ type: 'UPDATE_PRODUCT_REQUEST' });
 
   try {
-    const response = await fetch(`${getBaseUrl()}/api/products/update/${updatedProduct._id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedProduct),
-    });
+    // Use authenticated PUT for admin operations
+    const response = await adminPut(`/api/products/update/${updatedProduct._id}`, updatedProduct);
 
     const data = await response.json();
 
@@ -126,9 +121,9 @@ export const updateProduct = (updatedProduct: any) => async (dispatch: AppDispat
       // Notify WebSocket to update all users with the specific product ID
       const socket = getWebSocket();
       if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ 
-          type: 'REQUEST_PRODUCT_UPDATE', 
-          productId: updatedProduct._id 
+        socket.send(JSON.stringify({
+          type: 'REQUEST_PRODUCT_UPDATE',
+          productId: updatedProduct._id
         }));
         socket.send(JSON.stringify({ type: 'REQUEST_CATEGORIES_UPDATE' }));
       }
@@ -144,14 +139,13 @@ export const updateProduct = (updatedProduct: any) => async (dispatch: AppDispat
   }
 };
 
-// Delete a Product
+// Delete a Product (Admin only - uses authenticated request)
 export const deleteProduct = (id: string) => async (dispatch: AppDispatch) => {
   dispatch({ type: 'DELETE_PRODUCT_REQUEST' });
 
   try {
-    const response = await fetch(`${getBaseUrl()}/api/products/delete/${id}`, {
-      method: 'DELETE',
-    });
+    // Use authenticated DELETE for admin operations
+    const response = await adminDelete(`/api/products/delete/${id}`);
 
     if (response.ok) {
       dispatch({ type: 'DELETE_PRODUCT_SUCCESS', payload: id });
