@@ -6,6 +6,7 @@ import { fetchProducts, createProduct, updateProduct, deleteProduct } from '@/li
 import { maybeFetchCategories } from '@/lib/redux/actions/categoryActions';
 import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 import CategoryImageManager from '@/components/CategoryImageManager';
+import CategorySeoTextManager from '@/components/CategorySeoTextManager';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import {
   handleSearch,
@@ -528,6 +529,12 @@ function AdminPanelContent() {
             className={`px-4 py-2 rounded ${activeTab === 'featured' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
           >
             מוצרים מומלצים
+          </button>
+          <button
+            onClick={() => setActiveTab('seo')}
+            className={`px-4 py-2 rounded ${activeTab === 'seo' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          >
+            תוכן SEO
           </button>
         </nav>
 
@@ -1213,6 +1220,11 @@ function AdminPanelContent() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* SEO Content Tab */}
+        {activeTab === 'seo' && (
+          <CategorySeoTextManager />
         )}
       </main>
   );

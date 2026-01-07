@@ -11,21 +11,47 @@ import {
   CANONICAL_BASE_URL,
 } from '@/lib/category-slugs';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 type Props = {
   params: { companyName: string; categoryName: string };
 };
+
+// Fetch SEO text for a category
+async function fetchCategorySeoText(categoryName: string): Promise<{
+  seoTitle?: string;
+  seoDescription?: string;
+} | null> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/category-seo-text/${encodeURIComponent(categoryName)}`,
+      { next: { revalidate: 3600 } } // Cache for 1 hour
+    );
+    if (response.ok) {
+      return response.json();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { categoryName, companyName } = parseUrlParams(params);
   const canonicalUrl = getCategoryCanonicalUrl(companyName, categoryName);
   const canonicalPath = getCategoryCanonicalPath(companyName, categoryName);
-  
+
   try {
-    const categoriesData = await fetchCategories();
-    const categories: any[] = Array.isArray(categoriesData) 
-      ? categoriesData 
+    // Fetch categories and SEO text in parallel
+    const [categoriesData, seoText] = await Promise.all([
+      fetchCategories(),
+      fetchCategorySeoText(categoryName)
+    ]);
+
+    const categories: any[] = Array.isArray(categoriesData)
+      ? categoriesData
       : Object.values(categoriesData || {});
-    
+
     const category = categories.find((c: any) => c.categoryName === categoryName);
 
     if (!category) {
@@ -37,23 +63,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       };
     }
 
+    // Use SEO text from database if available, otherwise fallback to default
+    const title = seoText?.seoTitle || `${categoryName} | Lavangroup`;
+    const description = seoText?.seoDescription || `מוצרים בקטגוריה ${categoryName} באתר לבן גרופ. מגוון רחב של חומרי בניין ושיפוצים.`;
+
     return {
-      title: `${categoryName} | Lavangroup`,
-      description: `מוצרים בקטגוריה ${categoryName} באתר לבן גרופ. מגוון רחב של חומרי בניין ושיפוצים.`,
+      title,
+      description,
       alternates: {
         canonical: canonicalUrl,
       },
       openGraph: {
-        title: `${categoryName} | Lavangroup`,
-        description: `מוצרים בקטגוריה ${categoryName} באתר לבן גרופ.`,
+        title,
+        description,
         url: canonicalPath,
         type: 'website',
         images: category.תמונה ? [{ url: category.תמונה, width: 1200, height: 630, alt: categoryName }] : [{ url: '/logo.png', width: 800, height: 600, alt: 'Lavangroup' }],
       },
       twitter: {
         card: "summary_large_image",
-        title: `${categoryName} | Lavangroup`,
-        description: `מוצרים בקטגוריה ${categoryName} באתר לבן גרופ. מגוון רחב של חומרי בניין ושיפוצים.`,
+        title,
+        description,
         images: category.תמונה ? [category.תמונה] : ['/logo.png'],
       },
     };

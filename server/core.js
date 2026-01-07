@@ -21,6 +21,7 @@ const emailRoutes = require("./routes/emailRoutes");
 const categoryImagesRoutes = require("./routes/categoryImagesRoutes");
 const siteStatsRoutes = require("./routes/siteStatsRoutes");
 const imageProxyRoutes = require("./routes/imageProxyRoutes");
+const categorySeoTextRoutes = require("./routes/categorySeoTextRoutes");
 
 // ============ CONFIGURATION ============
 const CORS_ORIGINS = [
@@ -89,6 +90,7 @@ function setupRoutes(app) {
   app.use("/api/category-images", categoryImagesRoutes);
   app.use("/api/images", imageProxyRoutes);
   app.use("/api/site-stats", siteStatsRoutes);
+  app.use("/api/category-seo-text", categorySeoTextRoutes);
 
   // Health check
   app.get("/health", (req, res) => res.status(200).send("ok"));

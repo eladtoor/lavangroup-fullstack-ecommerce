@@ -10,6 +10,12 @@ import ProductCard from '@/components/ProductCard';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { parseUrlParams, buildCategoryUrl, categoryToSlug } from '@/lib/category-slugs';
 
+interface SeoText {
+  seoTitle: string;
+  seoDescription: string;
+  seoContent: string;
+}
+
 export default function CategoryContent() {
   const params = useParams();
   const router = useRouter();
@@ -28,6 +34,8 @@ export default function CategoryContent() {
   const isLoading = useAppSelector(
     (state) => state.categories.loading
   );
+
+  const [seoText, setSeoText] = useState<SeoText | null>(null);
 
   // Handle different structures
   let categoriesArray: any[] = [];
@@ -56,11 +64,29 @@ export default function CategoryContent() {
       (Array.isArray(categories) && categories.length > 0) ||
       (typeof categories === 'object' && Object.keys(categories).length > 0)
     );
-    
+
     if (!hasCategories && !isLoading) {
       dispatch(maybeFetchCategories());
     }
   }, [categories, isLoading, dispatch]);
+
+  // Fetch SEO text for this category
+  useEffect(() => {
+    if (categoryName) {
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/category-seo-text/${encodeURIComponent(categoryName)}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            setSeoText({
+              seoTitle: data.seoTitle || '',
+              seoDescription: data.seoDescription || '',
+              seoContent: data.seoContent || ''
+            });
+          }
+        })
+        .catch(() => setSeoText(null));
+    }
+  }, [categoryName]);
 
   // Show loading state while fetching
   if (isLoading || !categories) {
@@ -130,6 +156,15 @@ export default function CategoryContent() {
           </h1>
         )}
 
+        {/* SEO Content Section - Show only first paragraph above subcategories */}
+        {seoText?.seoContent && (
+          <div className="text-right mb-4 px-4">
+            <p className="text-gray-600 leading-relaxed text-base">
+              {seoText.seoContent.split('\n\n')[0]}
+            </p>
+          </div>
+        )}
+
         {!isDigitalCatalogCategory && subCategories.length > 0 && (
           <section className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-6 mt-6" aria-label="תת-קטגוריות">
             {subCategories.map((subcategory: any, index: number) => {
@@ -196,6 +231,46 @@ export default function CategoryContent() {
           </p>
         )}
       </section>
+
+      {/* Remaining SEO Content - At the bottom */}
+      {seoText?.seoContent && seoText.seoContent.split('\n\n').length > 1 && (
+        <section className="mt-8 bg-gray-50 rounded-xl p-6 border border-gray-200" aria-label="מידע נוסף">
+          <div className="text-right">
+            <div className="prose max-w-none text-gray-600">
+              {seoText.seoContent.split('\n\n').slice(1).map((block, blockIndex) => {
+                const lines = block.split('\n');
+                const hasBullets = lines.some(line => line.trim().startsWith('•') || line.trim().startsWith('*'));
+
+                if (hasBullets) {
+                  return (
+                    <ul key={blockIndex} className="list-disc list-inside mb-3 space-y-1 text-sm">
+                      {lines.map((line, lineIndex) => {
+                        const trimmedLine = line.trim();
+                        if (trimmedLine.startsWith('•') || trimmedLine.startsWith('*')) {
+                          return (
+                            <li key={lineIndex} className="leading-relaxed">
+                              {trimmedLine.substring(1).trim()}
+                            </li>
+                          );
+                        } else if (trimmedLine) {
+                          return <p key={lineIndex} className="mb-2 leading-relaxed text-sm">{trimmedLine}</p>;
+                        }
+                        return null;
+                      })}
+                    </ul>
+                  );
+                }
+
+                return (
+                  <p key={blockIndex} className="mb-3 leading-relaxed text-sm">
+                    {block}
+                  </p>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

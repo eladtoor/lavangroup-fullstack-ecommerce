@@ -11,23 +11,51 @@ import {
   CANONICAL_BASE_URL,
 } from '@/lib/category-slugs';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 type Props = {
   params: { companyName: string; categoryName: string; subcategoryName: string };
 };
+
+// Fetch SEO text for a subcategory
+async function fetchSubcategorySeoText(categoryName: string, subcategoryName: string): Promise<{
+  seoTitle?: string;
+  seoDescription?: string;
+} | null> {
+  try {
+    // Naming convention: "category - subcategory"
+    const seoName = `${categoryName} - ${subcategoryName}`;
+    const response = await fetch(
+      `${API_BASE_URL}/api/category-seo-text/${encodeURIComponent(seoName)}`,
+      { next: { revalidate: 3600 } } // Cache for 1 hour
+    );
+    if (response.ok) {
+      return response.json();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { categoryName, subcategoryName, companyName } = parseUrlParams(params);
   const canonicalUrl = getCategoryCanonicalUrl(companyName, categoryName, subcategoryName);
   const canonicalPath = getCategoryCanonicalPath(companyName, categoryName, subcategoryName);
-  
+
   try {
-    const categoriesData = await fetchCategories();
-    const categories: any[] = Array.isArray(categoriesData) 
-      ? categoriesData 
+    // Fetch categories and SEO text in parallel
+    const [categoriesData, seoText] = await Promise.all([
+      fetchCategories(),
+      fetchSubcategorySeoText(categoryName, subcategoryName)
+    ]);
+
+    const categories: any[] = Array.isArray(categoriesData)
+      ? categoriesData
       : Object.values(categoriesData || {});
-    
+
     const category = categories.find((c: any) => c.categoryName === categoryName);
-    
+
     if (!category) {
       return { title: 'קטגוריה לא נמצאה | Lavangroup' };
     }
@@ -40,22 +68,26 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       return { title: 'תת קטגוריה לא נמצאה | Lavangroup' };
     }
 
+    // Use SEO text from database if available, otherwise fallback to default
+    const title = seoText?.seoTitle || `${subcategoryName} - ${categoryName} | Lavangroup`;
+    const description = seoText?.seoDescription || `קנה מוצרי ${subcategoryName} מתוך ${categoryName} באתר לבן גרופ. משלוחים מהירים לכל הארץ.`;
+
     return {
-      title: `${subcategoryName} - ${categoryName} | Lavangroup`,
-      description: `קנה מוצרי ${subcategoryName} מתוך ${categoryName} באתר לבן גרופ. משלוחים מהירים לכל הארץ.`,
+      title,
+      description,
       alternates: {
         canonical: canonicalUrl,
       },
       openGraph: {
-        title: `${subcategoryName} - ${categoryName} | Lavangroup`,
-        description: `קנה מוצרי ${subcategoryName} מתוך ${categoryName} באתר לבן גרופ.`,
+        title,
+        description,
         url: canonicalPath,
         images: subCategory.תמונה ? [{ url: subCategory.תמונה, width: 1200, height: 630, alt: subcategoryName }] : [{ url: '/logo.png', width: 800, height: 600, alt: 'Lavangroup' }],
       },
       twitter: {
         card: "summary_large_image",
-        title: `${subcategoryName} - ${categoryName} | Lavangroup`,
-        description: `קנה מוצרי ${subcategoryName} מתוך ${categoryName} באתר לבן גרופ. משלוחים מהירים לכל הארץ.`,
+        title,
+        description,
         images: subCategory.תמונה ? [subCategory.תמונה] : ['/logo.png'],
       },
     };
