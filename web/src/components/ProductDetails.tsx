@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
+import { FaPhone, FaWhatsapp } from 'react-icons/fa';
 import { auth } from '@/lib/firebase';
 import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
 import { addToCart } from '@/lib/redux/slices/cartSlice';
@@ -35,6 +36,9 @@ const materialGroupTranslations = {
   Powders: 'אבקות (דבקים וטייח)',
   'Gypsum and Tracks': 'גבס ומסלולים',
 } as const;
+
+const CONTACT_PHONE = '050-5342813';
+const WHATSAPP_NUMBER = '972505342813';
 
 function isProbablyUrl(value?: string) {
   if (!value) return false;
@@ -411,7 +415,30 @@ export default function ProductDetails({
           <div className={mode === 'modal' ? '' : 'bg-white border border-gray-200 rounded-xl p-6 space-y-6'}>
             {/* Price Section */}
             <div className={mode === 'modal' ? 'mt-3 sm:mt-4 text-center' : ''}>
-              {hasDiscount ? (
+              {!product['מחיר רגיל'] || Number(product['מחיר רגיל']) === 0 ? (
+                <div className="space-y-3">
+                  <p className="text-xl font-semibold text-gray-800">
+                    פנה אלינו להצעת מחיר
+                  </p>
+                  <a
+                    href={`tel:${CONTACT_PHONE.replace(/-/g, '')}`}
+                    className="inline-flex items-center gap-2 text-lg text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    <FaPhone className="text-blue-600" />
+                    {CONTACT_PHONE}
+                  </a>
+                  <p className="text-gray-600">או בוואצפ</p>
+                  <a
+                    href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`שלום, אשמח לקבל הצעת מחיר עבור המוצר: ${product.שם}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
+                  >
+                    <FaWhatsapp className="text-xl" />
+                    שלח הודעה בוואצאפ
+                  </a>
+                </div>
+              ) : hasDiscount ? (
                 <div className="space-y-1">
                   <p className="text-lg text-gray-500 line-through">
                     ₪{(originalPrice * (selectedQuantity || 1)).toFixed(2)}
@@ -440,125 +467,132 @@ export default function ProductDetails({
               )}
             </div>
 
-            {/* Divider */}
-            {(product.סוג === 'variable' || (product.quantities && product.quantities.length > 0)) && (
-              <div className={mode === 'modal' ? 'hidden' : 'border-t border-gray-200'}></div>
-            )}
+            {/* Only show product options when price is not 0 */}
+            {product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 && (
+              <>
+                {/* Divider */}
+                {(product.סוג === 'variable' || (product.quantities && product.quantities.length > 0)) && (
+                  <div className={mode === 'modal' ? 'hidden' : 'border-t border-gray-200'}></div>
+                )}
 
-            {/* Attributes */}
-            {product.סוג === 'variable' && (
-              <div className={mode === 'modal' ? 'mt-3 sm:mt-4' : ''}>
-                <h3 className={mode === 'modal' ? 'font-semibold text-gray-800 text-center mb-2' : 'font-semibold text-gray-900 mb-3'}>
-                  בחר מאפיין:
-                </h3>
-                <div className={mode === 'modal' ? 'flex flex-wrap justify-center gap-3' : ''}>{renderVariationAttributes()}</div>
-              </div>
-            )}
+                {/* Attributes */}
+                {product.סוג === 'variable' && (
+                  <div className={mode === 'modal' ? 'mt-3 sm:mt-4' : ''}>
+                    <h3 className={mode === 'modal' ? 'font-semibold text-gray-800 text-center mb-2' : 'font-semibold text-gray-900 mb-3'}>
+                      בחר מאפיין:
+                    </h3>
+                    <div className={mode === 'modal' ? 'flex flex-wrap justify-center gap-3' : ''}>{renderVariationAttributes()}</div>
+                  </div>
+                )}
 
-            {/* Quantity */}
-            {product.quantities && product.quantities.length > 0 && (
-              <div className={mode === 'modal' ? 'mt-3 sm:mt-4 text-center' : ''}>
-                <h3 className={mode === 'modal' ? 'font-semibold text-gray-800' : 'font-semibold text-gray-900 mb-3'}>
-                  בחר כמות:
-                </h3>
-                <div className={mode === 'modal' ? 'flex gap-2 mt-2 flex-wrap justify-center' : 'flex gap-2 flex-wrap'}>
-                  {product.quantities.map((quantity) => (
-                    <label
-                      key={quantity}
-                      className={`px-4 py-2 border rounded-lg cursor-pointer transition-all ${
-                        selectedQuantity === quantity
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                          : 'bg-white hover:bg-gray-50 border-gray-300 hover:border-blue-400'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="quantity"
-                        value={quantity}
-                        checked={selectedQuantity === quantity}
-                        onChange={() => handleQuantityChange(quantity)}
-                        className="hidden"
-                      />
-                      {quantity}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
+                {/* Quantity */}
+                {product.quantities && product.quantities.length > 0 && (
+                  <div className={mode === 'modal' ? 'mt-3 sm:mt-4 text-center' : ''}>
+                    <h3 className={mode === 'modal' ? 'font-semibold text-gray-800' : 'font-semibold text-gray-900 mb-3'}>
+                      בחר כמות:
+                    </h3>
+                    <div className={mode === 'modal' ? 'flex gap-2 mt-2 flex-wrap justify-center' : 'flex gap-2 flex-wrap'}>
+                      {product.quantities.map((quantity) => (
+                        <label
+                          key={quantity}
+                          className={`px-4 py-2 border rounded-lg cursor-pointer transition-all ${
+                            selectedQuantity === quantity
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-white hover:bg-gray-50 border-gray-300 hover:border-blue-400'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="quantity"
+                            value={quantity}
+                            checked={selectedQuantity === quantity}
+                            onChange={() => handleQuantityChange(quantity)}
+                            className="hidden"
+                          />
+                          {quantity}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-            {/* Crane Unload */}
-            {product.materialGroup === 'Gypsum and Tracks' && (
-              <div className={mode === 'modal' ? 'mt-3 sm:mt-4 text-center' : ''}>
-                <h3 className={mode === 'modal' ? 'font-semibold text-gray-800' : 'font-semibold text-gray-900 mb-3'}>
-                  פריקת מנוף:
-                </h3>
-                <div className={mode === 'modal' ? 'flex gap-2 mt-2 justify-center' : 'flex gap-2'}>
-                  <label
-                    className={`px-4 py-2 border rounded-lg cursor-pointer transition-all ${
-                      craneUnload === true ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50 border-gray-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="craneUnload"
-                      checked={craneUnload === true}
-                      onChange={() => setCraneUnload(true)}
-                      className="hidden"
+                {/* Crane Unload */}
+                {product.materialGroup === 'Gypsum and Tracks' && (
+                  <div className={mode === 'modal' ? 'mt-3 sm:mt-4 text-center' : ''}>
+                    <h3 className={mode === 'modal' ? 'font-semibold text-gray-800' : 'font-semibold text-gray-900 mb-3'}>
+                      פריקת מנוף:
+                    </h3>
+                    <div className={mode === 'modal' ? 'flex gap-2 mt-2 justify-center' : 'flex gap-2'}>
+                      <label
+                        className={`px-4 py-2 border rounded-lg cursor-pointer transition-all ${
+                          craneUnload === true ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50 border-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="craneUnload"
+                          checked={craneUnload === true}
+                          onChange={() => setCraneUnload(true)}
+                          className="hidden"
+                        />
+                        כן
+                      </label>
+                      <label
+                        className={`px-4 py-2 border rounded-lg cursor-pointer transition-all ${
+                          craneUnload === false ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50 border-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="craneUnload"
+                          checked={craneUnload === false}
+                          onChange={() => setCraneUnload(false)}
+                          className="hidden"
+                        />
+                        לא
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* Comment */}
+                {product.allowComments && (
+                  <div className={mode === 'modal' ? 'mt-3 sm:mt-4' : ''}>
+                    <h3 className={mode === 'modal' ? 'font-semibold text-gray-800 text-center mb-2' : 'font-semibold text-gray-900 mb-3'}>
+                      הערה להזמנה (אופציונלי):
+                    </h3>
+                    <textarea
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      className={mode === 'modal' ? 'w-full border border-gray-300 rounded-md p-3 text-gray-800' : 'w-full border border-gray-300 rounded-lg p-3 text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent'}
+                      placeholder="כתוב הערה..."
+                      rows={3}
                     />
-                    כן
-                  </label>
-                  <label
-                    className={`px-4 py-2 border rounded-lg cursor-pointer transition-all ${
-                      craneUnload === false ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50 border-gray-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="craneUnload"
-                      checked={craneUnload === false}
-                      onChange={() => setCraneUnload(false)}
-                      className="hidden"
-                    />
-                    לא
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {/* Comment */}
-            {product.allowComments && (
-              <div className={mode === 'modal' ? 'mt-3 sm:mt-4' : ''}>
-                <h3 className={mode === 'modal' ? 'font-semibold text-gray-800 text-center mb-2' : 'font-semibold text-gray-900 mb-3'}>
-                  הערה להזמנה (אופציונלי):
-                </h3>
-                <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  className={mode === 'modal' ? 'w-full border border-gray-300 rounded-md p-3 text-gray-800' : 'w-full border border-gray-300 rounded-lg p-3 text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent'}
-                  placeholder="כתוב הערה..."
-                  rows={3}
-                />
-              </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Divider before button */}
-            {mode === 'page' && <div className="border-t border-gray-200"></div>}
+            {mode === 'page' && product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 && <div className="border-t border-gray-200"></div>}
 
-            {/* Actions */}
-            <div className={mode === 'modal' ? 'mt-4' : ''}>
-              <button
-                onClick={handleAddToCart}
-                disabled={disableAddToCart}
-                className={`w-full py-4 rounded-lg font-bold transition-all text-lg ${
-                  disableAddToCart
-                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                    : 'bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg transform hover:-translate-y-0.5'
-                }`}
-                title="הוסף לעגלה"
-              >
-                הוסף לעגלה
-              </button>
-            </div>
+            {/* Actions - Hide when price is 0 */}
+            {product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 && (
+              <div className={mode === 'modal' ? 'mt-4' : ''}>
+                <button
+                  onClick={handleAddToCart}
+                  disabled={disableAddToCart}
+                  className={`w-full py-4 rounded-lg font-bold transition-all text-lg ${
+                    disableAddToCart
+                      ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                      : 'bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg transform hover:-translate-y-0.5'
+                  }`}
+                  title="הוסף לעגלה"
+                >
+                  הוסף לעגלה
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

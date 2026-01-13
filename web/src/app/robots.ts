@@ -17,7 +17,11 @@ export default function robots(): MetadataRoute.Robots {
         '/user-management',
         '/purchase-history',
         '/user-info',
-        '/api'
+        '/api',
+        // Transactional pages (no SEO value)
+        '/cart',
+        '/order-confirmation',
+        '/order-success',
       ],
     },
     sitemap: `${CANONICAL_BASE_URL}/sitemap.xml`,

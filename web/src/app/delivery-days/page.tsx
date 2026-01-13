@@ -3,7 +3,7 @@ import Breadcrumbs from '@/components/Breadcrumbs';
 
 export const metadata: Metadata = {
   title: 'ימי חלוקה',
-  description: 'ימי חלוקה ומשלוחים לכל הארץ - לבן גרופ',
+  description: 'לוח ימי חלוקה ומשלוחים של לבן גרופ - משלוחים לכל אזורי הארץ. בדוק מתי המשלוח מגיע לאזור שלך. חומרי בניין, גבס, צבעים ועוד',
   alternates: {
     canonical: '/delivery-days',
   },

@@ -33,10 +33,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
     const canonicalPath = buildProductCanonicalPath(product);
     const title = `${product.שם} | Lavangroup`;
+
+    // Build rich fallback description with product details
+    const materialGroupHebrew: Record<string, string> = {
+      'Colors and Accessories': 'צבעים ואביזרים',
+      'Powders': 'אבקות ודבקים',
+      'Gypsum and Tracks': 'גבס ומסלולים',
+    };
+    const categoryText = product.materialGroup ? materialGroupHebrew[product.materialGroup] || 'חומרי בניין' : 'חומרי בניין';
+    const priceText = product['מחיר רגיל'] ? ` מחיר: ₪${product['מחיר רגיל']}.` : '';
+
     const description =
       product['תיאור קצר'] ||
       product['תיאור'] ||
-      `קנה את ${product.שם} באתר לבן גרופ. משלוחים מהירים לכל הארץ.`;
+      `${product.שם} - ${categoryText} | לבן גרופ.${priceText} משלוח מהיר לכל הארץ`;
     const image = product.תמונות || '/logo.png';
 
     return {

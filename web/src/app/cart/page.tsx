@@ -11,8 +11,6 @@ import { increaseQuantity, decreaseQuantity, removeFromCart, setCartItems } from
 import { loadCartFromFirestore, saveCartToFirestore } from '@/utils/cartUtils';
 import { auth, db } from '@/lib/firebase';
 import { collection, addDoc, doc, getDoc, setDoc } from 'firebase/firestore';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 
 interface MaterialGroup {
   groupName: string;
@@ -532,6 +530,10 @@ export default function CartPage() {
       alert('העגלה ריקה');
       return;
     }
+
+    // Dynamic imports - only load when PDF is generated
+    const html2canvas = (await import('html2canvas')).default;
+    const { jsPDF } = await import('jspdf');
 
     const date = new Date().toLocaleDateString('he-IL');
     
