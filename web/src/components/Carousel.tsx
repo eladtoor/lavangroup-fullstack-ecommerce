@@ -57,11 +57,12 @@ export default function Carousel({ images }: CarouselProps) {
     }
   };
 
-  // Show loading skeleton if no images provided
+  // Show loading skeleton if no images provided - same dimensions to prevent CLS
   if (!images || images.length === 0) {
     return (
       <div
-        className="relative max-w-6xl mx-auto h-[200px] md:h-[400px] rounded-xl overflow-hidden bg-gray-200 animate-pulse"
+        className="relative max-w-6xl mx-auto rounded-xl overflow-hidden bg-gray-200 animate-pulse"
+        style={{ aspectRatio: '3/1', maxHeight: '400px' }}
         aria-label="טוען תמונות קרוסלה"
       />
     );
@@ -69,7 +70,8 @@ export default function Carousel({ images }: CarouselProps) {
 
   return (
     <div
-      className="relative max-w-6xl mx-auto h-[200px] md:h-[400px] rounded-xl overflow-hidden shadow-lg shadow-gray-900 bg-white/20 flex justify-center items-center hover:border-4 border-double border-gray-900"
+      className="relative max-w-6xl mx-auto rounded-xl overflow-hidden shadow-lg shadow-gray-900 bg-white/20 flex justify-center items-center hover:border-4 border-double border-gray-900"
+      style={{ aspectRatio: '3/1', maxHeight: '400px' }}
       onMouseEnter={stopAutoSlide}
       onMouseLeave={startAutoSlide}
     >

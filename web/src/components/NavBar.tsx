@@ -96,9 +96,9 @@ export default function NavBar() {
   };
 
   return (
-    <header className="fixed top-0 w-full z-40 shadow-lg text-xl bg-gray-900 overflow-visible">
-      {/* Top Bar - Logo + Search + Icons */}
-      <div className="flex items-center justify-between gap-4 px-4 md:px-8 py-3 mx-auto relative border-b border-gray-700">
+    <header className="fixed top-0 w-full z-40 shadow-lg text-xl bg-gray-900 overflow-visible h-[120px] md:h-[136px]">
+      {/* Top Bar - Logo + Search + Icons - explicit height to prevent CLS */}
+      <div className="flex items-center justify-between gap-4 px-4 md:px-8 py-3 mx-auto relative border-b border-gray-700 h-[64px]">
         {/* Mobile Menu Button */}
         <button
           className="md:hidden text-white text-2xl p-2"

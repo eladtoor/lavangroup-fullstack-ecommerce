@@ -7,6 +7,7 @@ import { useAppSelector, useAppDispatch } from '@/lib/redux/hooks';
 import { maybeFetchProducts } from '@/lib/redux/actions/productActions';
 import { maybeFetchCategories } from '@/lib/redux/actions/categoryActions';
 import { FiShoppingCart } from 'react-icons/fi';
+import Carousel from '@/components/Carousel';
 
 // Code split non-critical components to reduce initial bundle size
 // These components are below the fold and can be loaded lazily
@@ -35,7 +36,11 @@ const FAQ = dynamic(() => import('@/components/FAQ'), {
   ssr: true, // Important for SEO
 });
 
-export default function HomePage() {
+interface HomePageProps {
+  carouselImages?: string[];
+}
+
+export default function HomePage({ carouselImages = [] }: HomePageProps) {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const categories = useAppSelector((state) => state.categories.categories);
@@ -107,7 +112,12 @@ export default function HomePage() {
       {/* Carousel Section - Server-side rendered for better LCP */}
       <section className="bg-gray-100 py-12 border-b border-gray-200" aria-label="מבצעים ודגשים">
         <div className="container mx-auto px-4">
-          <CarouselWrapper />
+          {/* Use pre-fetched images from SSR for faster LCP, fallback to client fetch */}
+          {carouselImages.length > 0 ? (
+            <Carousel images={carouselImages} />
+          ) : (
+            <CarouselWrapper />
+          )}
         </div>
       </section>
 

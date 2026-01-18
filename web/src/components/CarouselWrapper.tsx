@@ -63,11 +63,12 @@ export default function CarouselWrapper() {
     }
   };
 
-  // Show loading skeleton while fetching
+  // Show loading skeleton while fetching - same dimensions to prevent CLS
   if (isLoading) {
     return (
       <div
-        className="relative max-w-6xl mx-auto h-[200px] md:h-[400px] rounded-xl overflow-hidden bg-gray-200 animate-pulse"
+        className="relative max-w-6xl mx-auto rounded-xl overflow-hidden bg-gray-200 animate-pulse"
+        style={{ aspectRatio: '3/1', maxHeight: '400px' }}
         aria-label="טוען תמונות קרוסלה"
       />
     );
