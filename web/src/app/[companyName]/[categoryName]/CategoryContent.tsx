@@ -16,6 +16,9 @@ interface SeoText {
   seoContent: string;
 }
 
+const getBaseUrl = () =>
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 export default function CategoryContent() {
   const params = useParams();
   const router = useRouter();
@@ -30,12 +33,14 @@ export default function CategoryContent() {
   const categories = useAppSelector(
     (state) => state.categories.categories
   );
-  
+
   const isLoading = useAppSelector(
     (state) => state.categories.loading
   );
 
   const [seoText, setSeoText] = useState<SeoText | null>(null);
+  const [products, setProducts] = useState<any[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
 
   // Handle different structures
   let categoriesArray: any[] = [];
@@ -88,6 +93,20 @@ export default function CategoryContent() {
     }
   }, [categoryName]);
 
+  // Fetch products for this category on-demand (much faster than loading all products)
+  useEffect(() => {
+    if (categoryName) {
+      setProductsLoading(true);
+      fetch(`${getBaseUrl()}/api/products/category/${encodeURIComponent(categoryName)}`)
+        .then(res => res.ok ? res.json() : [])
+        .then(data => {
+          setProducts(Array.isArray(data) ? data : []);
+        })
+        .catch(() => setProducts([]))
+        .finally(() => setProductsLoading(false));
+    }
+  }, [categoryName]);
+
   // Show loading state while fetching
   if (isLoading || !categories) {
     return (
@@ -137,7 +156,7 @@ export default function CategoryContent() {
 
   const isDigitalCatalogCategory = categoryName === 'קטלוגים דיגיטלים להורדה';
   const subCategories = currentCategory.subCategories || [];
-  const products = currentCategory.products || [];
+  // Products are fetched on-demand via separate API call (faster loading)
 
   const breadcrumbItems = [
     { label: 'דף הבית', href: '/' },
@@ -215,7 +234,11 @@ export default function CategoryContent() {
           מוצרים מקטגוריה זו
         </h2>
 
-        {products.length > 0 ? (
+        {productsLoading ? (
+          <div className="text-center py-8">
+            <p className="text-gray-600">טוען מוצרים...</p>
+          </div>
+        ) : products.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-6 mt-6 justify-items-center bg-white shadow-lg rounded-xl p-8 border border-gray-200">
             {products.map((product: any, index: number) => (
               <ProductCard

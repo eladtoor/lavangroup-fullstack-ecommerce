@@ -4,12 +4,13 @@ import { CategoryStructure, Category } from '../reducers/categoryReducer';
 const getBaseUrl = () =>
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-// Fetch Categories from Server
+// Fetch Categories from Server (lightweight - for navigation only)
 export const fetchCategories = () => async (dispatch: AppDispatch) => {
   dispatch({ type: 'FETCH_CATEGORIES_REQUEST' });
 
   try {
-    const response = await fetch(`${getBaseUrl()}/api/categories`);
+    // Use lightweight endpoint - only category names, no products (much faster!)
+    const response = await fetch(`${getBaseUrl()}/api/categories/nav`);
 
     let data;
     try {

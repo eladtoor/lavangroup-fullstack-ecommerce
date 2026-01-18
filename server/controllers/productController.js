@@ -74,10 +74,48 @@ const deleteProduct = async (req, res) => {
   }
 };
 
+// Get products by category name (efficient - only fetches matching products)
+const getProductsByCategory = async (req, res) => {
+  try {
+    const { categoryName, subCategoryName } = req.params;
+
+    if (!categoryName) {
+      return res.status(400).json({ error: "Category name is required" });
+    }
+
+    // Build search pattern based on whether subcategory is provided
+    // Categories field format: "Main Category" or "Main Category > Sub Category"
+    let searchPattern;
+    if (subCategoryName) {
+      // Search for specific subcategory: "Main > Sub"
+      searchPattern = new RegExp(`(^|,)\\s*${escapeRegex(categoryName)}\\s*>\\s*${escapeRegex(subCategoryName)}\\s*(,|$)`, 'i');
+    } else {
+      // Search for main category (products directly in category, not subcategories)
+      // Match "Category" but not "Category > Subcategory"
+      searchPattern = new RegExp(`(^|,)\\s*${escapeRegex(categoryName)}\\s*(,|$)`, 'i');
+    }
+
+    const products = await Product.find({
+      "קטגוריות": { $regex: searchPattern }
+    }).lean();
+
+    res.status(200).json(products);
+  } catch (error) {
+    console.error("Error in getProductsByCategory:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Helper function to escape regex special characters
+const escapeRegex = (string) => {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 module.exports = {
   createProduct,
   getProduct,
   updateProduct,
   deleteProduct,
   getAllProducts,
+  getProductsByCategory,
 };

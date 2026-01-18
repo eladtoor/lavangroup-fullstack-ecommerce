@@ -5,6 +5,8 @@ const { adminOnly } = require("../middleware/authMiddleware");
 
 // Public routes
 router.get("/getAll", productController.getAllProducts);
+router.get("/category/:categoryName", productController.getProductsByCategory);
+router.get("/category/:categoryName/:subCategoryName", productController.getProductsByCategory);
 router.get("/:id", productController.getProduct);
 
 // Admin-only routes (protected)

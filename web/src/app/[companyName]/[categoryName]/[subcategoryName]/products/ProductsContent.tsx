@@ -13,6 +13,9 @@ interface SeoText {
   seoContent: string;
 }
 
+const getBaseUrl = () =>
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 export default function ProductsContent() {
   const params = useParams();
   const { categoryName, subcategoryName, companyName } = parseUrlParams({
@@ -26,6 +29,8 @@ export default function ProductsContent() {
   );
 
   const [seoText, setSeoText] = useState<SeoText | null>(null);
+  const [products, setProducts] = useState<any[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
 
   // Fetch SEO text for this subcategory
   useEffect(() => {
@@ -47,10 +52,24 @@ export default function ProductsContent() {
     }
   }, [categoryName, subcategoryName]);
 
+  // Fetch products for this subcategory on-demand (much faster than loading all products)
+  useEffect(() => {
+    if (categoryName && subcategoryName) {
+      setProductsLoading(true);
+      fetch(`${getBaseUrl()}/api/products/category/${encodeURIComponent(categoryName)}/${encodeURIComponent(subcategoryName)}`)
+        .then(res => res.ok ? res.json() : [])
+        .then(data => {
+          setProducts(Array.isArray(data) ? data : []);
+        })
+        .catch(() => setProducts([]))
+        .finally(() => setProductsLoading(false));
+    }
+  }, [categoryName, subcategoryName]);
+
   if (!categories) {
     return (
       <div className="container mx-auto mt-24 p-6">
-        <p className="text-center text-gray-600">קטגוריות לא זמינות.</p>
+        <p className="text-center text-gray-600">טוען קטגוריות...</p>
       </div>
     );
   }
@@ -73,12 +92,12 @@ export default function ProductsContent() {
 
   // Find the subcategory
   const subCategories = currentCategory.subCategories || [];
-  
+
   // Try exact match first
   let currentSubcategory = subCategories.find(
     (sub: any) => sub.subCategoryName === subcategoryName
   );
-  
+
   // If not found, try partial match (for cases like "שליכט צבעוני" vs "שליכט")
   if (!currentSubcategory) {
     currentSubcategory = subCategories.find(
@@ -106,17 +125,17 @@ export default function ProductsContent() {
     );
   }
 
-  const products = currentSubcategory.products || [];
+  // Products are fetched on-demand via separate API call (faster loading)
   const isDigitalCatalogCategory = categoryName === 'קטלוגים דיגיטלים להורדה';
-  
+
   // Build canonical breadcrumb URLs using English slugs
   const categoryCanonicalPath = getCategoryCanonicalPath(companyName || 'טמבור', categoryName);
 
   const breadcrumbItems = [
     { label: 'דף הבית', href: '/' },
     { label: companyName || 'טמבור', href: '/' },
-    { 
-      label: categoryName, 
+    {
+      label: categoryName,
       href: categoryCanonicalPath
     },
     { label: subcategoryName }
@@ -125,7 +144,7 @@ export default function ProductsContent() {
   return (
     <main className="min-h-screen container mx-auto pt-32 md:pt-36 p-6" dir="rtl">
       <Breadcrumbs items={breadcrumbItems} />
-      
+
       <section aria-label="מוצרים" className="bg-white shadow-lg rounded-xl p-8 text-center border border-gray-200">
         <header>
           <h1 className="text-3xl font-bold text-gray-900 mb-6 border-b-2 border-gray-300 pb-2 inline-block">
@@ -142,7 +161,11 @@ export default function ProductsContent() {
           </div>
         )}
 
-        {products.length > 0 ? (
+        {productsLoading ? (
+          <div className="text-center py-8">
+            <p className="text-gray-600">טוען מוצרים...</p>
+          </div>
+        ) : products.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-6 mt-6 justify-items-center">
             {products.map((product: any, index: number) => (
               <ProductCard
@@ -201,4 +224,3 @@ export default function ProductsContent() {
     </main>
   );
 }
-

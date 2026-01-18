@@ -19,7 +19,8 @@ export interface CategoryMap {
  */
 export async function fetchCategoryMap(): Promise<CategoryMap> {
   try {
-    const response = await fetch(`${getBaseUrl()}/api/categories`);
+    // Use lightweight endpoint - no products included (much faster!)
+    const response = await fetch(`${getBaseUrl()}/api/categories/nav`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch categories: ${response.statusText}`);

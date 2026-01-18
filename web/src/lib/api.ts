@@ -32,10 +32,10 @@ export const fetchProductById = async (id: string) => {
   }
 };
 
-// Fetch categories
+// Fetch categories (lightweight - only category names, no products)
 export const fetchCategories = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/categories`);
+    const response = await fetch(`${API_BASE_URL}/api/categories/nav`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
