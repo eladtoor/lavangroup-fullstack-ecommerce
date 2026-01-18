@@ -67,12 +67,13 @@ const nextConfig = {
         hostname: '**.cloudinary.com',
       }
     ],
-    // Disable image optimization to save memory (512MB RAM only)
-    unoptimized: process.env.NODE_ENV === 'production',
+    // Use Cloudinary loader for optimization (saves server RAM)
+    // Cloudinary handles resizing, format conversion, and quality
+    loader: 'custom',
+    loaderFile: './src/lib/cloudinary-loader.js',
     minimumCacheTTL: 31536000, // 1 year cache for images
     deviceSizes: [640, 750, 828, 1080, 1200],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
-    formats: ['image/avif', 'image/webp'], // Modern formats for better compression
   },
   // Proxy API requests to Express server
   async rewrites() {

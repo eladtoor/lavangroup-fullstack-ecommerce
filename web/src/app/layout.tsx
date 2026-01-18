@@ -96,6 +96,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="he" dir="rtl" className={inter.variable}>
+      <head>
+        {/* Preconnect to external resources for faster loading */}
+        <link rel="preconnect" href="https://res.cloudinary.com" />
+        <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+        <link rel="preconnect" href="https://www.googletagmanager.com" />
+        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+      </head>
       <body className={`${inter.className} flex flex-col min-h-screen`}>
         <GoogleTagManager />
         <Providers>

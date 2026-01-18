@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Smile, Truck, Users, Clock } from 'lucide-react';
 
 interface CounterProps {
@@ -13,48 +13,72 @@ interface CounterProps {
 
 const Counter: React.FC<CounterProps> = ({ end, label, Icon, gradient, iconColor }) => {
   const [count, setCount] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+  const counterRef = useRef<HTMLDivElement>(null);
 
+  // Only animate when visible (Intersection Observer)
   useEffect(() => {
-    let start = 0;
-    const duration = 2500;
-    const incrementTime = 50;
-    const totalIncrements = duration / incrementTime;
-    const increment = end / totalIncrements;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.3 }
+    );
 
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= end) {
-        start = end;
-        clearInterval(timer);
+    if (counterRef.current) {
+      observer.observe(counterRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Optimized counter animation using requestAnimationFrame
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const duration = 1500; // Reduced from 2500ms
+    const startTime = performance.now();
+    let animationId: number;
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Ease-out curve for smoother animation
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.floor(easeOut * end));
+
+      if (progress < 1) {
+        animationId = requestAnimationFrame(animate);
       }
-      setCount(Math.floor(start));
-    }, incrementTime);
+    };
 
-    return () => clearInterval(timer);
-  }, [end]);
+    animationId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationId);
+  }, [end, isVisible]);
 
   return (
-    <div className="group relative">
-      {/* Card */}
-      <div className="relative bg-white/95 backdrop-blur-sm rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 hover:scale-105 border border-white/50 overflow-hidden" style={{ willChange: 'transform' }}>
-        {/* Shimmer effect on hover - Fixed position to prevent CLS */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" style={{ willChange: 'transform' }} />
-        
+    <div className="group relative" ref={counterRef}>
+      {/* Card - removed backdrop-blur on mobile for better performance */}
+      <div className="relative bg-white/95 md:backdrop-blur-sm rounded-2xl p-6 shadow-xl md:hover:shadow-2xl transition-shadow duration-300 border border-white/50 overflow-hidden">
         {/* Gradient accent bar */}
         <div className={`absolute top-0 left-0 right-0 h-1.5 ${gradient}`} />
-        
+
         {/* Icon */}
-        <div className={`w-14 h-14 rounded-2xl ${gradient} flex items-center justify-center mb-4 mx-auto shadow-lg group-hover:scale-110 transition-transform duration-300`} style={{ willChange: 'transform' }}>
+        <div className={`w-14 h-14 rounded-2xl ${gradient} flex items-center justify-center mb-4 mx-auto shadow-lg`}>
           <Icon className={`w-7 h-7 ${iconColor}`} strokeWidth={2} />
         </div>
-        
+
         {/* Number */}
         <div className="text-center">
           <span className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent tabular-nums">
             {count.toLocaleString()}
           </span>
         </div>
-        
+
         {/* Label */}
         <p className="text-sm text-gray-600 text-center mt-2 font-semibold">
           {label}
@@ -146,18 +170,18 @@ export default function StatsCounters({ children }: StatsCountersProps) {
 
   return (
     <div className="relative overflow-hidden rounded-3xl min-h-[400px]">
-      {/* Animated gradient background - Red, White, Green - Fixed position to prevent CLS */}
-      <div className="absolute inset-0 bg-gradient-to-r from-red-200 via-white via-green-200 to-red-200 animate-gradient-shift" style={{ willChange: 'background-position' }} />
-      
-      {/* Floating orbs - Fixed position to prevent CLS */}
-      <div className="absolute top-10 left-10 w-32 h-32 bg-red-300/40 rounded-full blur-2xl animate-float" style={{ willChange: 'transform' }} />
-      <div className="absolute bottom-10 right-10 w-40 h-40 bg-green-300/40 rounded-full blur-2xl animate-float-delayed" style={{ willChange: 'transform' }} />
-      <div className="absolute top-1/2 left-1/4 w-24 h-24 bg-red-200/50 rounded-full blur-2xl animate-pulse-slow" style={{ willChange: 'opacity, transform' }} />
-      <div className="absolute bottom-1/3 right-1/3 w-28 h-28 bg-green-200/50 rounded-full blur-2xl animate-float" style={{ willChange: 'transform' }} />
-      <div className="absolute top-1/4 right-1/4 w-20 h-20 bg-white/60 rounded-full blur-xl animate-pulse-slow" style={{ willChange: 'opacity, transform' }} />
-      
-      {/* Glass overlay - Fixed position */}
-      <div className="absolute inset-0 bg-white/10 backdrop-blur-[1px]" />
+      {/* Static gradient background - animations disabled on mobile for performance */}
+      <div className="absolute inset-0 bg-gradient-to-r from-red-200 via-white via-green-200 to-red-200 md:animate-gradient-shift md:bg-[length:300%_300%]" />
+
+      {/* Floating orbs - only shown on desktop for performance */}
+      <div className="hidden md:block">
+        <div className="absolute top-10 left-10 w-32 h-32 bg-red-300/40 rounded-full blur-2xl animate-float" />
+        <div className="absolute bottom-10 right-10 w-40 h-40 bg-green-300/40 rounded-full blur-2xl animate-float-delayed" />
+        <div className="absolute top-1/2 left-1/4 w-24 h-24 bg-red-200/50 rounded-full blur-2xl animate-pulse-slow" />
+      </div>
+
+      {/* Simplified overlay */}
+      <div className="absolute inset-0 bg-white/10" />
       
       {/* Content */}
       <div className="relative py-12 px-6 md:px-12">
@@ -178,36 +202,44 @@ export default function StatsCounters({ children }: StatsCountersProps) {
         </div>
       </div>
       
-      {/* CSS for animations */}
+      {/* CSS for animations - respects prefers-reduced-motion */}
       <style jsx>{`
         @keyframes gradient-shift {
           0%, 100% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
         }
         @keyframes float {
-          0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-20px) scale(1.1); }
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-15px); }
         }
         @keyframes float-delayed {
-          0%, 100% { transform: translateY(0px) scale(1.1); }
-          50% { transform: translateY(20px) scale(1); }
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(15px); }
         }
         @keyframes pulse-slow {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.2); }
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.6; }
         }
         .animate-gradient-shift {
-          background-size: 300% 300%;
-          animation: gradient-shift 8s ease infinite;
+          animation: gradient-shift 12s ease infinite;
         }
         .animate-float {
-          animation: float 6s ease-in-out infinite;
+          animation: float 8s ease-in-out infinite;
         }
         .animate-float-delayed {
-          animation: float-delayed 7s ease-in-out infinite;
+          animation: float-delayed 9s ease-in-out infinite;
         }
         .animate-pulse-slow {
-          animation: pulse-slow 4s ease-in-out infinite;
+          animation: pulse-slow 5s ease-in-out infinite;
+        }
+        /* Disable animations for users who prefer reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+          .animate-gradient-shift,
+          .animate-float,
+          .animate-float-delayed,
+          .animate-pulse-slow {
+            animation: none;
+          }
         }
       `}</style>
     </div>
