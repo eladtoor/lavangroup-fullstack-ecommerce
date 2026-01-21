@@ -8,6 +8,7 @@ import {
   getCategoryCanonicalPath,
   getCategoryCanonicalUrl,
   paramsMatchCanonical,
+  isValidCompanySlug,
   CANONICAL_BASE_URL,
 } from '@/lib/category-slugs';
 
@@ -21,6 +22,7 @@ type Props = {
 async function fetchSubcategorySeoText(categoryName: string, subcategoryName: string): Promise<{
   seoTitle?: string;
   seoDescription?: string;
+  seoContent?: string;
 } | null> {
   try {
     // Naming convention: "category - subcategory"
@@ -35,6 +37,23 @@ async function fetchSubcategorySeoText(categoryName: string, subcategoryName: st
     return null;
   } catch {
     return null;
+  }
+}
+
+// Fetch products for a subcategory (for SSR)
+async function fetchSubcategoryProducts(categoryName: string, subcategoryName: string): Promise<any[]> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/products/category/${encodeURIComponent(categoryName)}/${encodeURIComponent(subcategoryName)}`,
+      { next: { revalidate: 300 } } // Cache for 5 minutes
+    );
+    if (response.ok) {
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    }
+    return [];
+  } catch {
+    return [];
   }
 }
 
@@ -100,6 +119,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function Page({ params }: Props) {
+  // Check if company slug is valid (e.g., "tambour")
+  // If not (e.g., "/construction-materials/something/something"), redirect to canonical
+  const actualCompanySlug = decodeURIComponent(params.companyName || '');
+
+  if (!isValidCompanySlug(actualCompanySlug)) {
+    // Invalid company slug - treat the first segment as a category and redirect
+    const realCategoryName = parseUrlParams({ categoryName: params.companyName }).categoryName;
+    const realSubcategoryName = parseUrlParams({ subcategoryName: params.categoryName }).subcategoryName;
+    const canonicalPath = getCategoryCanonicalPath('טמבור', realCategoryName, realSubcategoryName);
+    permanentRedirect(canonicalPath);
+  }
+
   const { categoryName, subcategoryName, companyName } = parseUrlParams(params);
   const canonicalPath = getCategoryCanonicalPath(companyName, categoryName, subcategoryName);
   const categoryPath = getCategoryCanonicalPath(companyName, categoryName);
@@ -109,24 +140,11 @@ export default async function Page({ params }: Props) {
     permanentRedirect(canonicalPath);
   }
 
-  // Fetch data for Schema Markup
-  let products: any[] = [];
-  try {
-    const categoriesData = await fetchCategories();
-    const categories: any[] = Array.isArray(categoriesData) 
-      ? categoriesData 
-      : Object.values(categoriesData || {});
-    
-    const category = categories.find((c: any) => c.categoryName === categoryName);
-    const subCategory = category?.subCategories?.find(
-      (s: any) => s.subCategoryName === subcategoryName
-    );
-    if (subCategory) {
-      products = subCategory.products || [];
-    }
-  } catch (e) {
-    console.error('Error fetching data for schema:', e);
-  }
+  // Fetch products and SEO text on server for SSR
+  const [products, seoText] = await Promise.all([
+    fetchSubcategoryProducts(categoryName, subcategoryName),
+    fetchSubcategorySeoText(categoryName, subcategoryName)
+  ]);
 
   // Breadcrumb Schema
   const breadcrumbJsonLd = {
@@ -180,7 +198,13 @@ export default async function Page({ params }: Props) {
     <>
       <StructuredData data={breadcrumbJsonLd} />
       {products.length > 0 && <StructuredData data={itemListJsonLd} />}
-      <ProductsContent />
+      <ProductsContent
+        initialProducts={products}
+        initialSeoText={seoText}
+        categoryName={categoryName}
+        subcategoryName={subcategoryName}
+        companyName={companyName}
+      />
     </>
   );
 }

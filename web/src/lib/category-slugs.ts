@@ -251,6 +251,14 @@ export function getCategoryCanonicalUrl(
 }
 
 /**
+ * Check if a slug is a valid company name (currently only "tambour")
+ */
+export function isValidCompanySlug(slug: string): boolean {
+  const validCompanySlugs = ['tambour'];
+  return validCompanySlugs.includes(slug.toLowerCase());
+}
+
+/**
  * Check if URL params match the canonical slug path.
  * Used to determine if a redirect is needed.
  */
@@ -262,15 +270,21 @@ export function paramsMatchCanonical(
 ): boolean {
   const expectedCompanySlug = categoryToSlug(hebrewCompany);
   const expectedCategorySlug = categoryToSlug(hebrewCategory);
-  
+
   // Decode params for comparison (they may be URL-encoded)
   const actualCompany = decodeURIComponent(params.companyName || '');
   const actualCategory = decodeURIComponent(params.categoryName || '');
-  
+
+  // If company slug is not a valid company (e.g., "construction-materials" instead of "tambour"),
+  // this is not canonical - needs redirect
+  if (!isValidCompanySlug(actualCompany)) {
+    return false;
+  }
+
   if (actualCompany !== expectedCompanySlug || actualCategory !== expectedCategorySlug) {
     return false;
   }
-  
+
   if (hebrewSubcategory !== undefined) {
     const expectedSubcategorySlug = categoryToSlug(hebrewSubcategory);
     const actualSubcategory = decodeURIComponent(params.subcategoryName || '');
@@ -278,7 +292,7 @@ export function paramsMatchCanonical(
       return false;
     }
   }
-  
+
   return true;
 }
 

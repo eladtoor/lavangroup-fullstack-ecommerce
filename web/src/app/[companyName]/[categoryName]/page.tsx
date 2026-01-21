@@ -8,6 +8,7 @@ import {
   getCategoryCanonicalPath,
   getCategoryCanonicalUrl,
   paramsMatchCanonical,
+  isValidCompanySlug,
   CANONICAL_BASE_URL,
 } from '@/lib/category-slugs';
 
@@ -96,6 +97,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function Page({ params }: Props) {
+  // Check if company slug is valid (e.g., "tambour")
+  // If not (e.g., "/construction-materials/construction-materials"), redirect to canonical
+  const actualCompanySlug = decodeURIComponent(params.companyName || '');
+
+  if (!isValidCompanySlug(actualCompanySlug)) {
+    // Invalid company slug - treat the first segment as a category and redirect to /tambour/category
+    // The "categoryName" in the URL is actually the real category
+    const realCategoryName = parseUrlParams({ categoryName: params.companyName }).categoryName;
+    const canonicalPath = getCategoryCanonicalPath('טמבור', realCategoryName);
+    permanentRedirect(canonicalPath);
+  }
+
   const { categoryName, companyName } = parseUrlParams(params);
   const canonicalPath = getCategoryCanonicalPath(companyName, categoryName);
 

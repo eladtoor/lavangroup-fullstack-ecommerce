@@ -1,70 +1,40 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import React from 'react';
 import { useAppSelector } from '@/lib/redux/hooks';
 import ProductCard from '@/components/ProductCard';
 import Breadcrumbs from '@/components/Breadcrumbs';
-import { parseUrlParams, getCategoryCanonicalPath } from '@/lib/category-slugs';
+import { getCategoryCanonicalPath } from '@/lib/category-slugs';
 
 interface SeoText {
-  seoTitle: string;
-  seoDescription: string;
-  seoContent: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoContent?: string;
 }
 
-const getBaseUrl = () =>
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+interface ProductsContentProps {
+  initialProducts: any[];
+  initialSeoText: SeoText | null;
+  categoryName: string;
+  subcategoryName: string;
+  companyName: string;
+}
 
-export default function ProductsContent() {
-  const params = useParams();
-  const { categoryName, subcategoryName, companyName } = parseUrlParams({
-    companyName: params.companyName as string,
-    categoryName: params.categoryName as string,
-    subcategoryName: params.subcategoryName as string,
-  });
-
+export default function ProductsContent({
+  initialProducts,
+  initialSeoText,
+  categoryName,
+  subcategoryName,
+  companyName,
+}: ProductsContentProps) {
   const categories = useAppSelector(
     (state) => state.categories.categories
   );
 
-  const [seoText, setSeoText] = useState<SeoText | null>(null);
-  const [products, setProducts] = useState<any[]>([]);
-  const [productsLoading, setProductsLoading] = useState(true);
-
-  // Fetch SEO text for this subcategory
-  useEffect(() => {
-    if (categoryName && subcategoryName) {
-      // Naming convention: "category - subcategory"
-      const seoName = `${categoryName} - ${subcategoryName}`;
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/category-seo-text/${encodeURIComponent(seoName)}`)
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data) {
-            setSeoText({
-              seoTitle: data.seoTitle || '',
-              seoDescription: data.seoDescription || '',
-              seoContent: data.seoContent || ''
-            });
-          }
-        })
-        .catch(() => setSeoText(null));
-    }
-  }, [categoryName, subcategoryName]);
-
-  // Fetch products for this subcategory on-demand (much faster than loading all products)
-  useEffect(() => {
-    if (categoryName && subcategoryName) {
-      setProductsLoading(true);
-      fetch(`${getBaseUrl()}/api/products/category/${encodeURIComponent(categoryName)}/${encodeURIComponent(subcategoryName)}`)
-        .then(res => res.ok ? res.json() : [])
-        .then(data => {
-          setProducts(Array.isArray(data) ? data : []);
-        })
-        .catch(() => setProducts([]))
-        .finally(() => setProductsLoading(false));
-    }
-  }, [categoryName, subcategoryName]);
+  // Use server-provided data (SSR)
+  const products = initialProducts;
+  const seoText = initialSeoText;
+  const productsLoading = false; // Products are pre-loaded from server
 
   if (!categories) {
     return (
