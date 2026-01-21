@@ -102,6 +102,8 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://res.cloudinary.com" />
         <link rel="preconnect" href="https://www.googletagmanager.com" />
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+        <link rel="preconnect" href="https://vee-crm.com" />
+        <link rel="dns-prefetch" href="https://vee-crm.com" />
       </head>
       <body className={`${inter.className} flex flex-col min-h-screen`}>
         <GoogleTagManager />
