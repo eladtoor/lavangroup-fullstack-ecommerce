@@ -83,6 +83,14 @@ export default function ProductDetails({
   const [craneUnload, setCraneUnload] = useState<boolean | null>(null);
   const [comment, setComment] = useState('');
 
+  // Check if product has pricing through variations (even without מחיר רגיל)
+  const hasVariationPricing = useMemo(() => {
+    if (!product.variations || product.variations.length === 0) return false;
+    return product.variations.some((v) =>
+      Object.values(v.attributes || {}).some((attr) => attr.price && Number(attr.price) > 0)
+    );
+  }, [product.variations]);
+
   // Scroll to top when component mounts (for page mode)
   useEffect(() => {
     if (mode === 'page') {
@@ -415,7 +423,7 @@ export default function ProductDetails({
           <div className={mode === 'modal' ? '' : 'bg-white border border-gray-200 rounded-xl p-6 space-y-6'}>
             {/* Price Section */}
             <div className={mode === 'modal' ? 'mt-3 sm:mt-4 text-center' : ''}>
-              {!product['מחיר רגיל'] || Number(product['מחיר רגיל']) === 0 ? (
+              {(!product['מחיר רגיל'] || Number(product['מחיר רגיל']) === 0) && !hasVariationPricing ? (
                 <div className="space-y-3">
                   <p className="text-xl font-semibold text-gray-800">
                     פנה אלינו להצעת מחיר
@@ -467,8 +475,8 @@ export default function ProductDetails({
               )}
             </div>
 
-            {/* Only show product options when price is not 0 */}
-            {product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 && (
+            {/* Only show product options when price is not 0 or has variation pricing */}
+            {(product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 || hasVariationPricing) && (
               <>
                 {/* Divider */}
                 {(product.סוג === 'variable' || (product.quantities && product.quantities.length > 0)) && (
@@ -574,10 +582,10 @@ export default function ProductDetails({
             )}
 
             {/* Divider before button */}
-            {mode === 'page' && product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 && <div className="border-t border-gray-200"></div>}
+            {mode === 'page' && (product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 || hasVariationPricing) && <div className="border-t border-gray-200"></div>}
 
-            {/* Actions - Hide when price is 0 */}
-            {product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 && (
+            {/* Actions - Hide when price is 0 and no variation pricing */}
+            {(product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 || hasVariationPricing) && (
               <div className={mode === 'modal' ? 'mt-4' : ''}>
                 <button
                   onClick={handleAddToCart}
