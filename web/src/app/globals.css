@@ -102,10 +102,8 @@ html {
   }
 }
 
-/* Apply animations - use opacity only to prevent layout shift */
+/* Reserve space to prevent CLS */
 section {
-  animation: fadeIn 0.6s ease-out;
-  /* Reserve space to prevent CLS */
   min-height: 1px;
 }
 
