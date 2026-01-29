@@ -126,7 +126,7 @@ export default function StatsCounters({ children }: StatsCountersProps) {
         
         <div className="relative py-12 px-6 md:px-12">
           <div className="flex items-center justify-center">
-            <div className="animate-pulse grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 max-w-5xl mx-auto w-full">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 max-w-5xl mx-auto w-full">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="bg-gray-200 rounded-2xl h-36" />
               ))}

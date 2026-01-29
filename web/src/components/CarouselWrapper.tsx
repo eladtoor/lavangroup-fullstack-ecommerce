@@ -67,7 +67,7 @@ export default function CarouselWrapper() {
   if (isLoading) {
     return (
       <div
-        className="relative max-w-6xl mx-auto rounded-xl overflow-hidden bg-gray-200 animate-pulse"
+        className="relative max-w-6xl mx-auto rounded-xl overflow-hidden bg-gray-200"
         style={{ aspectRatio: '3/1', maxHeight: '400px' }}
         aria-label="טוען תמונות קרוסלה"
       />

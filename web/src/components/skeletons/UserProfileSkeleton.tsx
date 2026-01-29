@@ -1,7 +1,7 @@
 export default function UserProfileSkeleton() {
   return (
     <div className="min-h-screen mb-32 font-sans mt-24 md:mt-32 px-4 bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-5xl mx-auto animate-pulse">
+      <div className="max-w-5xl mx-auto">
         {/* Breadcrumb */}
         <div className="flex gap-2 mb-4">
           <div className="h-4 bg-gray-300 rounded w-20"></div>

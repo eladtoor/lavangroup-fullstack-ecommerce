@@ -1,6 +1,6 @@
 export default function PageSkeleton() {
   return (
-    <div className="min-h-screen bg-gray-50 animate-pulse">
+    <div className="min-h-screen bg-gray-50">
       {/* Breadcrumb Skeleton */}
       <div className="container mx-auto px-6 pt-28">
         <div className="flex gap-2 mb-6">

@@ -64,11 +64,11 @@ export default function RecommendedProducts() {
       <div className="bg-white rounded-2xl shadow-xl p-6 border-2 border-gray-200">
         {/* Header */}
         <div className="flex items-center justify-center gap-3 mb-6">
-          <Sparkles className="w-8 h-8 text-primary animate-pulse" />
+          <Sparkles className="w-8 h-8 text-primary" />
           <h2 className="text-3xl font-extrabold text-gray-900">
             מוצרים מומלצים
           </h2>
-          <Sparkles className="w-8 h-8 text-primary animate-pulse" />
+          <Sparkles className="w-8 h-8 text-primary" />
         </div>
 
         {/* Products Grid */}

@@ -1,6 +1,6 @@
 export default function CategoryCardSkeleton() {
   return (
-    <div className="bg-white rounded-xl shadow-lg overflow-hidden animate-pulse">
+    <div className="bg-white rounded-xl shadow-lg overflow-hidden">
       {/* Image Skeleton */}
       <div className="w-full h-48 bg-gray-300"></div>
       

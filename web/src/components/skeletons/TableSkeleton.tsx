@@ -5,7 +5,7 @@ interface TableSkeletonProps {
 
 export default function TableSkeleton({ rows = 10, columns = 5 }: TableSkeletonProps) {
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse">
+    <div className="bg-white rounded-lg shadow-md overflow-hidden">
       {/* Table Header */}
       <div className="bg-gray-100 border-b">
         <div className="flex gap-4 p-4">

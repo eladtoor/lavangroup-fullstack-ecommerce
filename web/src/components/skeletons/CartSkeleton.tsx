@@ -1,6 +1,6 @@
 export default function CartSkeleton() {
   return (
-    <div className="min-h-screen w-full px-4 md:px-10 pt-16 md:pt-24 mt-10 animate-pulse">
+    <div className="min-h-screen w-full px-4 md:px-10 pt-16 md:pt-24 mt-10">
       {/* Title */}
       <div className="h-8 bg-gray-300 rounded w-48 mb-6"></div>
 

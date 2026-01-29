@@ -44,11 +44,11 @@ export default function PersonalizedDiscounts() {
       <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl shadow-xl p-6 border-2 border-green-200">
         {/* Header */}
         <div className="flex items-center justify-center gap-3 mb-6">
-          <Tag className="w-8 h-8 text-green-600 animate-pulse" />
+          <Tag className="w-8 h-8 text-green-600" />
           <h2 className="text-3xl font-extrabold text-gray-900">
             המבצעים האישיים שלך
           </h2>
-          <Percent className="w-8 h-8 text-green-600 animate-pulse" />
+          <Percent className="w-8 h-8 text-green-600" />
         </div>
 
         {/* Description */}

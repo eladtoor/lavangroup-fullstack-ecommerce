@@ -1,6 +1,6 @@
 export default function OrdersListSkeleton() {
   return (
-    <div className="container mx-auto px-4 py-8 pt-24 md:pt-32 animate-pulse" dir="rtl">
+    <div className="container mx-auto px-4 py-8 pt-24 md:pt-32" dir="rtl">
       {/* Title */}
       <div className="h-10 bg-gray-300 rounded w-64 mx-auto mb-8"></div>
 
