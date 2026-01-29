@@ -145,6 +145,7 @@ function toAsciiSlug(input: string): string {
  * Convert Hebrew category name to SEO-friendly slug
  */
 export function categoryToSlug(categoryName: string): string {
+  if (!categoryName) return '';
   const normalized = categoryName.trim();
   
   // Check if we have a mapping

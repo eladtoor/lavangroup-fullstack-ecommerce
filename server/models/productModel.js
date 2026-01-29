@@ -34,6 +34,10 @@ const productSchema = new mongoose.Schema({
   ],
 });
 
+// Indexes for query performance
+productSchema.index({ מזהה: 1 });
+productSchema.index({ קטגוריות: 1 });
+
 const Product = mongoose.model("Product", productSchema, "test");
 
 module.exports = Product;

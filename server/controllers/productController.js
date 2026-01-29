@@ -32,7 +32,7 @@ const getProduct = async (req, res) => {
 // פונקציה לשליפת המוצרים מהדאטה בייס ולהמיר את השדות לאנגלית
 const getAllProducts = async (req, res) => {
   try {
-    const products = await Product.find(); // שליפת כל המוצרים מהדאטה בייס
+    const products = await Product.find().lean(); // lean() returns plain JS objects, much faster
 
     res.json(products);
   } catch (error) {

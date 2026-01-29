@@ -78,9 +78,28 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Default deny all other access
-    match /{document=**} {
-      allow read, write: if false;
+    // Settings collection - featured products, etc. (public read, admin write)
+    match /settings/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Products collection (if stored in Firestore)
+    match /products/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Orders collection
+    match /orders/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Default: allow read for unknown collections, deny write
+    match /{collection}/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

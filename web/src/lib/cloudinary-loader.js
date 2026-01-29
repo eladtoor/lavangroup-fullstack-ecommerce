@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * Custom Cloudinary loader for Next.js Image component
  * This allows us to use Cloudinary's optimization without server-side processing
@@ -7,8 +5,8 @@
  */
 
 export default function cloudinaryLoader({ src, width, quality }) {
-  // Default quality if not specified
-  const q = quality || 'auto:good';
+  // Default quality if not specified (quality comes as number from Next.js)
+  const q = quality ? `auto:good,q_${quality}` : 'auto:good';
 
   // If it's already a Cloudinary URL, transform it
   if (src && src.includes('cloudinary.com')) {
@@ -28,15 +26,14 @@ export default function cloudinaryLoader({ src, width, quality }) {
       // q_auto:good or specific quality
       // w_WIDTH: resize to specified width
       // c_limit: don't upscale, only downscale
-      // dpr_auto: auto device pixel ratio for retina displays
-      const transforms = `f_auto,q_${q},w_${width},c_limit,dpr_auto`;
+      const transforms = `f_auto,${q},w_${width},c_limit`;
 
       return `${baseUrl}${transforms}/${imagePath}`;
     }
 
     // Fallback: try simpler replacement for URLs with /upload/
     if (src.includes('/upload/')) {
-      const transforms = `f_auto,q_${q},w_${width},c_limit`;
+      const transforms = `f_auto,${q},w_${width},c_limit`;
       return src.replace(/\/upload\/([^\/]*\/)?/, `/upload/${transforms}/`);
     }
   }
