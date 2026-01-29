@@ -6,7 +6,7 @@
 
 export default function cloudinaryLoader({ src, width, quality }) {
   // Default quality if not specified (quality comes as number from Next.js)
-  const q = quality ? `auto:good,q_${quality}` : 'auto:good';
+  const q = quality ? `q_${quality}` : 'q_auto:good';
 
   // If it's already a Cloudinary URL, transform it
   if (src && src.includes('cloudinary.com')) {
