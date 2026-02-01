@@ -103,8 +103,15 @@ export default function Footer() {
         </div>
       </div>
 
+      {/* SEO Text */}
+      <div className="max-w-6xl mx-auto px-6 mt-6 border-t border-gray-700 pt-4">
+        <p className="text-xs text-gray-500 leading-relaxed text-center">
+          לבן גרופ – ספק חומרי בניין לקבלנים, חברות בנייה ובונים פרטיים. צבעים, טיח, שפכטל, דבק קרמיקה, מוצרי איטום, לוחות גבס וחומרי גמר במחירי סיטונאי. מותגים מובילים: טמבור, קלסימו איקס, פוליסיד, סופרקריל. אספקה חינם בפריסה ארצית – תל אביב, ירושלים, חיפה, באר שבע, הרצליה, ראשון לציון, פתח תקווה, נתניה, אשדוד ועוד. ליווי טכני ויעוץ מקצועי ללא עלות.
+        </p>
+      </div>
+
       {/* זכויות יוצרים */}
-      <p className="text-sm text-gray-400 mt-6 border-t border-gray-700 pt-3">
+      <p className="text-sm text-gray-400 mt-4 border-t border-gray-700 pt-3">
         &copy; {new Date().getFullYear()} Lavan Group. כל הזכויות שמורות.
       </p>
     </footer>
