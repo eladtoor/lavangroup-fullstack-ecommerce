@@ -45,8 +45,8 @@ async function start() {
   // Setup WebSocket handlers
   const { heartbeatInterval, setupChangeStream } = setupWebSocket(wss);
 
-  // Connect to MongoDB and start Change Stream
-  connectDB(setupChangeStream);
+  // Connect to MongoDB and start Change Stream (await to prevent serving requests before DB is ready)
+  await connectDB(setupChangeStream);
 
   // Setup graceful shutdown
   setupGracefulShutdown(server, wss, heartbeatInterval);

@@ -44,6 +44,7 @@ const MONGO_OPTIONS = {
   socketTimeoutMS: 45000,
   serverSelectionTimeoutMS: 10000,
   heartbeatFrequencyMS: 10000,
+  maxIdleTimeMS: 30000, // Close connections idle for 30s+ to prevent stale connections
 };
 
 const CSP_HEADER = 
@@ -119,21 +120,52 @@ function setupRoutes(app) {
   });
 }
 
+// ============ HEALTH DIAGNOSTICS ============
+const MONGO_STATES = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+
+function startHealthDiagnostics() {
+  const logHealth = () => {
+    const mem = process.memoryUsage();
+    const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+    const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
+    const uptimeH = (process.uptime() / 3600).toFixed(1);
+    const mongoState = MONGO_STATES[mongoose.connection.readyState] || 'unknown';
+    console.log(`[HEALTH] uptime=${uptimeH}h mem=${heapMB}MB/${heapTotalMB}MB mongo=${mongoState}`);
+  };
+
+  // Log on startup
+  logHealth();
+  // Log every 30 minutes
+  setInterval(logHealth, 30 * 60 * 1000);
+}
+
 // ============ DATABASE CONNECTION ============
 let changeStreamInstance = null;
 let onChangeStreamReady = null;
 
 async function connectDB(onReady) {
   onChangeStreamReady = onReady;
-  
+
   if (!process.env.MONGO_URI) {
     console.error("❌ MONGO_URI is not defined in environment variables.");
     process.exit(1);
   }
 
+  // Monitor connection events
+  mongoose.connection.on('disconnected', () => {
+    console.warn("⚠️ MongoDB disconnected");
+  });
+  mongoose.connection.on('reconnected', () => {
+    console.log("🔄 MongoDB reconnected");
+  });
+  mongoose.connection.on('error', (err) => {
+    console.error("❌ MongoDB connection error event:", err.message);
+  });
+
   try {
     await mongoose.connect(process.env.MONGO_URI, MONGO_OPTIONS);
     console.log("✅ MongoDB connected");
+    startHealthDiagnostics();
     if (onChangeStreamReady) onChangeStreamReady();
   } catch (err) {
     console.error("❌ MongoDB connection error:", err);

@@ -4,8 +4,8 @@ services:
     runtime: node
     plan: starter # $7/month - 512MB RAM, 0.5 CPU
     region: oregon # Choose closest to your users
-    buildCommand: cd web && npm ci --prefer-offline && npm run build
-    startCommand: cd server && npm ci && npm start
+    buildCommand: cd web && npm ci --prefer-offline && npm run build && cd ../server && npm ci --prefer-offline
+    startCommand: cd server && node combined.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
