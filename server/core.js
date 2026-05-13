@@ -65,6 +65,11 @@ const CSP_HEADER =
 
 // ============ MIDDLEWARE SETUP ============
 function setupMiddleware(app) {
+  // Trust Render's edge proxy so req.ip is the real client IP (from X-Forwarded-For).
+  // Required for express-rate-limit to key on per-user IPs instead of the shared proxy IP.
+  // Use 1 (not true) so clients can't spoof X-Forwarded-For end-to-end.
+  app.set('trust proxy', 1);
+
   // CORS
   app.use(cors({
     origin: CORS_ORIGINS,
