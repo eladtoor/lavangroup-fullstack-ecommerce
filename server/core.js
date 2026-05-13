@@ -9,7 +9,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const WebSocket = require("ws");
-const { buildCategoryStructure } = require("./controllers/categoryController");
+const { getCategoriesNav } = require("./controllers/categoryController");
 
 // Rate Limiting
 const {
@@ -259,7 +259,9 @@ function setupWebSocket(wss) {
           },
         }),
       };
-      await buildCategoryStructure(req, res);
+      // Use lightweight nav structure (no embedded products) instead of full tree
+      // to avoid recomputing/serializing thousands of nested products on every change
+      await getCategoriesNav(req, res);
     } catch (error) {
       console.error("❌ Error broadcasting category updates:", error);
     }
@@ -297,6 +299,16 @@ function setupWebSocket(wss) {
   });
 
   // Change Stream setup
+  let retryScheduled = false;
+  const scheduleRetry = () => {
+    if (retryScheduled) return;
+    retryScheduled = true;
+    setTimeout(() => {
+      retryScheduled = false;
+      setupChangeStream();
+    }, 5000);
+  };
+
   const setupChangeStream = () => {
     try {
       if (changeStreamInstance) {
@@ -311,7 +323,7 @@ function setupWebSocket(wss) {
 
       changeStreamInstance.on("change", async (change) => {
         const productId = change.documentKey?._id;
-        
+
         if (change.operationType === 'delete') {
           broadcastProductsUpdate();
         } else if (productId) {
@@ -319,7 +331,7 @@ function setupWebSocket(wss) {
         } else {
           broadcastProductsUpdate();
         }
-        
+
         broadcastCategoriesUpdate();
       });
 
@@ -329,19 +341,19 @@ function setupWebSocket(wss) {
           changeStreamInstance.close();
           changeStreamInstance = null;
         }
-        setTimeout(setupChangeStream, 5000);
+        scheduleRetry();
       });
 
       changeStreamInstance.on("close", () => {
         console.warn("⚠️ Change Stream closed, will retry...");
         changeStreamInstance = null;
-        setTimeout(setupChangeStream, 5000);
+        scheduleRetry();
       });
 
       console.log("🟢 Change Stream initialized.");
     } catch (error) {
       console.error("❌ Error setting up Change Stream:", error);
-      setTimeout(setupChangeStream, 5000);
+      scheduleRetry();
     }
   };
 
