@@ -19,12 +19,13 @@ const createProduct = async (req, res) => {
 // פונקציה לקבלת פרטי מוצר לפי מזהה
 const getProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findById(req.params.id).lean();
     if (!product) {
       return res.status(404).send("Product not found");
     }
     res.status(200).send(product);
   } catch (error) {
+    console.error(`[REQ-ERR] GET /api/products/${req.params.id}:`, error);
     res.status(500).send(error.message);
   }
 };
@@ -36,6 +37,7 @@ const getAllProducts = async (req, res) => {
 
     res.json(products);
   } catch (error) {
+    console.error("[REQ-ERR] GET /api/products/getAll:", error);
     res.status(500).json({ error: "Error fetching products" });
   }
 };
@@ -101,7 +103,7 @@ const getProductsByCategory = async (req, res) => {
 
     res.status(200).json(products);
   } catch (error) {
-    console.error("Error in getProductsByCategory:", error.message);
+    console.error(`[REQ-ERR] GET /api/products/category/${req.params.categoryName}${req.params.subCategoryName ? '/' + req.params.subCategoryName : ''}:`, error);
     res.status(500).json({ error: error.message });
   }
 };

@@ -86,6 +86,22 @@ function setupMiddleware(app) {
     res.setHeader("Permissions-Policy", "geolocation=(), microphone=()");
     next();
   });
+
+  // Request logger — logs slow (>1000ms) or error responses, plus everything in dev
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      if (req.path === '/health') return;
+      const ms = Date.now() - start;
+      const slow = ms > 1000;
+      const bad = res.statusCode >= 400;
+      if (slow || bad || process.env.NODE_ENV !== 'production') {
+        const mongoState = MONGO_STATES[mongoose.connection.readyState] || 'unknown';
+        console.log(`[REQ] ${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms mongo=${mongoState}${slow ? ' SLOW' : ''}`);
+      }
+    });
+    next();
+  });
 }
 
 // ============ ROUTES SETUP ============
@@ -164,7 +180,7 @@ async function connectDB(onReady) {
 
   try {
     await mongoose.connect(process.env.MONGO_URI, MONGO_OPTIONS);
-    console.log("✅ MongoDB connected");
+    console.log(`✅ MongoDB connected: ${mongoose.connection.host}/${mongoose.connection.name}`);
     startHealthDiagnostics();
     if (onChangeStreamReady) onChangeStreamReady();
   } catch (err) {
