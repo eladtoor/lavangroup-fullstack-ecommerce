@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { collectionGroup, query, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
 import { useAppSelector } from '@/lib/redux/hooks';
 import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 import Breadcrumbs from '@/components/Breadcrumbs';
@@ -72,79 +72,25 @@ function OrderManagementContent() {
     try {
       setLoading(true);
 
-      // Fetch all purchases from all users using collectionGroup (without orderBy to avoid index requirement)
-      const purchasesQuery = query(collectionGroup(db, 'purchases'));
-
-      const querySnapshot = await getDocs(purchasesQuery);
-
-      const fetchedOrders: Order[] = [];
-
-      for (const docSnapshot of querySnapshot.docs) {
-        const orderData = docSnapshot.data();
-        const orderRef = docSnapshot.ref;
-        const userId = orderRef.parent.parent?.id || '';
-
-        // Debug logging (dev only)
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('📊 Order Management - Raw order data from Firestore:', {
-            orderId: docSnapshot.id,
-            userId,
-            cartItemsCount: orderData.cartItems?.length || 0,
-            firstCartItem: orderData.cartItems?.[0] || null,
-            totalPrice: orderData.totalPrice,
-            isCreditLine: orderData.isCreditLine,
-            paymentMethod: orderData.paymentMethod,
-          });
-        }
-
-        // Fetch user data to get email and name
-        let customerEmail = '';
-        let customerName = '';
-
-        if (userId) {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', userId));
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-
-              // Debug logging (dev only)
-              if (process.env.NODE_ENV !== 'production') {
-                console.log('User data fields for userId:', userId, Object.keys(userData));
-              }
-
-              customerEmail = userData.email || userData.Email || '';
-              // Try multiple possible name fields
-              customerName = userData.fullName ||
-                           userData.companyName ||
-                           userData.FullName ||
-                           userData.CompanyName ||
-                           userData.name ||
-                           userData.displayName ||
-                           (customerEmail ? customerEmail.split('@')[0] : '') || // Use email username as fallback
-                           'משתמש';
-            }
-          } catch (error) {
-            console.error('Error fetching user data:', error);
-          }
-        }
-
-        fetchedOrders.push({
-          id: docSnapshot.id,
-          userId,
-          customerEmail,
-          customerName,
-          ...orderData,
-        } as Order);
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.error('No authenticated user');
+        return;
       }
 
-      // Sort orders by date on the client side (newest first)
-      fetchedOrders.sort((a, b) => {
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
-        return dateB - dateA; // Descending order (newest first)
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch('/api/admin/orders', {
+        headers: { 'Authorization': `Bearer ${idToken}` },
       });
 
-      setOrders(fetchedOrders);
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('Error fetching orders:', errorData.error);
+        return;
+      }
+
+      const data = await res.json();
+      setOrders(data.orders || []);
     } catch (error) {
       console.error('Error fetching all orders:', error);
     } finally {
