@@ -2,6 +2,30 @@
 
 This file exists because **the same problem keeps coming back every couple of months**. Read it before suggesting changes — most of the obvious moves have already been tried, and there are infra constraints that rule out the easy answers.
 
+## STATUS — 2026-06-18: root cause found & fixed (READ THIS FIRST)
+
+The "redeploy fixes it for weeks" framing further down pointed at **runtime state drift / heap growth (H1)**. **That was wrong.** A 35-day production `[HEALTH]` trace showed heap dead-flat at ~95MB (cap 460MB) with no restarts — no leak, no drift. **H1 is disproven; do not re-chase it.**
+
+**Actual root cause: load-induced head-of-line blocking on the single 0.5-CPU process.** Under a crawler walking the category tree, every hot read endpoint did a full-collection scan + synchronous `JSON.stringify` (and the regex category query forces a COLLSCAN). On half a CPU these serialize through one event loop, so requests pile up and release in *waves* — even a trivial indexed `findById` took 30–120s. It is congestion **under load**, not slow accumulation; "redeploy fixes it" merely drops the queued work. Confirmed fixed in prod: the same requests went **36,000ms → 36ms**.
+
+### What shipped (newest first) — all live on `main`
+- `5d68fe7` — **Incident recorder.** New `[STALL]`, `[HEALTH-WARN]`, `[BROADCAST]` logs so a recurrence records its own cause (see the log table). The `[HEALTH]` line gained `rss` and `loop=p99/max` (event-loop delay).
+- `5be5508` — **Dependabot remediation.** All prod-relevant criticals/highs cleared (`npm audit fix` in `server/` + `web/`; `next`→14.2.35; `jspdf`→4.2.1).
+- `197e747` — **Change stream fixed.** It had watched collection `"products"` but data lives in `"test"`, so it never fired. Now uses `Product.watch()` and invalidates the response cache on change. NOTE: this **re-activated H2 broadcasts** (see Still open).
+- `a2cba64` — **The fix.** Single-flight + short-TTL response cache (`server/utils/responseCache.js`) on getAll, category, nav, site-stats, seo-text. N concurrent identical requests collapse to one Mongo op + one serialize. This resolved the slowness.
+
+### Decision rule when it feels slow again
+Open Render logs and grep for `STALL`, `HEALTH-WARN`, `BROADCAST`, then `SLOW`:
+- A `[STALL]` / `[HEALTH-WARN]` / `[BROADCAST]` line → it **names the cause** (in-flight request, broadcast state, memory, mongo, `cacheKeys`). Fix that.
+- A `[REQ] … SLOW` line but no `[STALL]` → a single slow request/endpoint (read the URL).
+- **Nothing** in any of them but it's slow → not the app: look upstream (CDN / Render platform / network / frontend cache).
+
+### Still open / deferred (a new session can pick these up)
+- **Broadcast debounce (server-only).** `197e747` turned change-stream broadcasts back on; each product change runs a synchronous full category rebuild + product broadcast *off the request path* (invisible to `[REQ]`; shows as `[BROADCAST]` / `[STALL]` with `broadcast=IN_PROGRESS`). Fine for single edits; under a **bulk product update** it fires many ~1s rebuilds back-to-back. If `[BROADCAST]` lines cluster, debounce the change-stream handler (coalesce a burst into one rebuild after ~1–2s of quiet). This is the live H2 follow-up.
+- **Bounded cache.** `responseCache` evicts lazily (on access) with no size cap. A long crawl of many distinct `category:` / `seo:` keys can grow it. Watch `cacheKeys` in `[STALL]` / `[HEALTH-WARN]`; if it climbs into the tens of thousands, add a periodic sweep + max-size eviction.
+- **Next 15 migration.** The only prod vuln residual (image-optimizer / RSC DoS highs) is patched only in Next 15 — a deliberate major upgrade, deferred.
+- **`firebase-admin` 13→14** (clears the google-cloud moderate chain) and **dev-only vuln tooling** (concurrently/shell-quote, eslint 9, glob) — deferred, not prod runtime.
+
 ## Project at a glance
 
 - **Stack:** Node/Express + MongoDB (Mongoose) + Next.js + Redux + native WebSocket (`ws`).
@@ -28,7 +52,7 @@ This file exists because **the same problem keeps coming back every couple of mo
 - **Clicking a single product is slow or hangs**
 - **Redeploying fixes it for weeks-to-months**, then it returns
 
-The "redeploy fixes it" fingerprint means **runtime state drift** — heap growth, stale connections, stacked retry timers, or accumulated per-IP rate-limit buckets. It is **not** a static code bug. It is **not** Render cold-start (starter plan doesn't spin down). It is **not** Atlas auto-pause (M0 doesn't pause as long as it gets traffic).
+> ⚠️ **This paragraph was the original theory and is now DISPROVEN — see STATUS at the top.** It read: *the "redeploy fixes it" fingerprint means runtime state drift (heap growth, stale connections, stacked timers, rate-limit buckets).* The 35-day flat-heap trace killed that. The real cause is **load-induced head-of-line blocking** on the single 0.5-CPU process, fixed in `a2cba64`. Kept here so nobody re-derives the wrong hypothesis. Still true: it is **not** a static code bug, **not** Render cold-start, **not** Atlas auto-pause.
 
 ## What has already been done (don't re-suggest)
 
@@ -61,20 +85,22 @@ Three possible signatures:
 
 | Signature | Likely cause | Where to look next |
 |---|---|---|
-| High `ms`, `mongo=connected`, no `[REQ-ERR]` | Node event-loop blocked or Mongo throttled | Check nearest `[HEALTH]` for memory, then Atlas Metrics |
+| High `ms`, `mongo=connected`, no `[REQ-ERR]` | Node event-loop blocked or Mongo throttled | Check nearest `[STALL]` and the `loop=` field of `[HEALTH]`; if `loop` is calm, then Atlas Metrics |
 | `[REQ-ERR]` appears with stack | Deterministic bug | Read the stack — fix at the line shown |
 | **No `[REQ]` line at all** for the slow click | Request never reached the server | Check Render Events tab (instance restart? deploy?), CDN, or frontend timeout |
 
 ### Step 3 — Check the closest `[HEALTH]` line
 
-Logged every 30 min, format:
+Logged every 30 min, current format:
 
 ```
-[HEALTH] uptime=Xh mem=YMB/ZMB mongo=connected
+[HEALTH] uptime=Xh mem=YMB/ZMB rss=RMB loop=p99:Ams/max:Bms mongo=connected
 ```
 
-- `mem` consistently > 350MB before a slowness window → **heap pressure / GC stalls** (H1 below)
-- `mem` flat but slowness persists → likely Mongo-side (H4) or broadcast saturation (H2)
+- `loop=p99` high (hundreds of ms) or `max` multi-second → **process is CPU/event-loop bound** (the head-of-line pattern). This is the usual cause.
+- `mem` climbing toward 300MB+ over days → a leak (would also emit `[HEALTH-WARN]`). Note: historically `mem` is flat ~95MB, so this would be new.
+- `loop` near 0 but requests slow → Mongo-side; cross-check Atlas (Step 4).
+- A `[STALL]` line near the slow window is more precise than `[HEALTH]` — it captures the exact block and what was running.
 
 ### Step 4 — Check MongoDB Atlas
 
@@ -86,24 +112,17 @@ Atlas dashboard → cluster → **Metrics** tab. Look at the past week:
 
 Cross-reference Render `[REQ] ... SLOW` timestamps with Atlas metric spikes. If they coincide, the cause is Mongo-side. If `[REQ]` is slow but Atlas is calm, it's Node-side.
 
-## Open hypotheses (not yet fixed)
+## Hypotheses (historical — see STATUS for current truth)
 
-Ordered by how likely they are to be the next culprit when symptoms return:
+Original ranking of "next culprit." Updated with what we now know.
 
-### H1 — Heap pressure + GC stalls (most likely on long uptimes)
+### H1 — Heap pressure + GC stalls — ❌ DISPROVEN (2026-06-18)
 
-- `express-rate-limit` uses the default in-memory store (`server/middleware/rateLimiter.js`). Buckets accumulate one entry per unique IP over weeks. Bots and crawlers inflate this.
-- The category cache in `server/controllers/categoryController.js:5-10` holds the full structure (including embedded products in the `full` cache slot — populated by the `/api/categories` route, though nothing on the frontend currently calls it).
-- 460MB heap + 0.5 CPU = GC pauses become disproportionately expensive.
+35-day flat-heap trace (~95MB, no restarts) ruled this out. The rate-limit store self-resets each window (it is *not* a cumulative weeks-long leak), and the `full` category cache is a single overwritten slot, not growth. **Do not re-chase.** (Original notes: default in-memory `express-rate-limit` store; `categoryController.js` `full` cache slot; 460MB+0.5CPU GC cost.)
 
-**Next moves if confirmed:** bounded rate-limit store (e.g. `rate-limit-mongo`), drop products from the `full` cache slot or remove the `/api/categories` route entirely since nothing uses it.
+### H2 — WebSocket broadcasts on every product change — ⚠️ NOW ACTIVE
 
-### H2 — WebSocket broadcasts on every product change (partially mitigated)
-
-- `broadcastProductsUpdate(null)` (fallback path) still does `Product.find({}).lean().limit(1000)` and sends every product to every connected client.
-- Triggered by: change-stream when no product id is available, and by admin clients sending `REQUEST_PRODUCTS_UPDATE` after create/delete.
-
-**Next moves if confirmed:** change the fallback to send a `PRODUCTS_INVALIDATE` ping; add a handler in `web/src/lib/websocket.ts` that calls `dispatch(fetchProducts())`. This is a coordinated backend+frontend change — that's why it was deferred.
+Was dormant (change stream watched the wrong collection). `197e747` fixed the collection, so this path **now fires** on every product change: `broadcastProductsUpdate` + a synchronous full category rebuild, off the request path. Confirmed to produce occasional ~1s `[STALL]`s. **Next move (server-only): debounce the change-stream handler** so a burst (bulk product update) coalesces into one rebuild — see "Still open" in STATUS. The original coordinated FE option (`PRODUCTS_INVALIDATE` ping + a `web/src/lib/websocket.ts` handler that `dispatch(fetchProducts())`) is still valid if lighter payloads are wanted.
 
 ### H3 — Mongo connection-pool starvation
 
@@ -121,8 +140,11 @@ If logs show repeated `⚠️ Change Stream closed, will retry...` clusters with
 | `✅ MongoDB connected: <host>/<db>` | `core.js:167` | Mongoose finished connecting. The host/db lets you confirm the right Atlas cluster after long gaps. |
 | `⚠️ MongoDB disconnected` / `🔄 MongoDB reconnected` | `core.js:155-159` | Atlas dropped/recovered. Occasional is fine. Frequent (multiple per hour) is not. |
 | `❌ MongoDB connection error event: <msg>` | `core.js:161-163` | Atlas threw. Read the message. |
-| `[HEALTH] uptime=Xh mem=YMB/ZMB mongo=<state>` | `core.js:127-140` | Every 30 min. Track `mem` over a week to see drift. |
-| `[REQ] <method> <url> <status> <ms>ms mongo=<state> [SLOW]` | `core.js`, request logger | Slow or error response. The most useful single log when triaging. |
+| `[HEALTH] uptime=Xh mem=YMB/ZMB rss=RMB loop=p99:Ams/max:Bms mongo=<state>` | `core.js` `startHealthDiagnostics` | Every 30 min. `loop` = event-loop delay (the key CPU-bound signal); `max` is per-window. |
+| `[HEALTH-WARN] <reasons> rss=RMB cacheKeys=N` | `core.js` `startHealthDiagnostics` | Slow-burn alarm: heap>300MB, mongo not connected, or loop p99>500ms. Greppable; means investigate. |
+| `[STALL] blocked~Xms inflight=N oldest=[...] mem=... mongo=... wsClients=N broadcast=<yes/no> cacheKeys=N` | `core.js` `startIncidentRecorder` | Event-loop blocked >~700ms. **The single most useful line on a recurrence** — names what was running. |
+| `[BROADCAST] <products\|categories> <ms>ms [id=...]` | `core.js` broadcast fns | A change-stream broadcast took >200ms. Clusters of these = bulk product update → debounce (H2). |
+| `[REQ] <method> <url> <status> <ms>ms mongo=<state> [SLOW]` | `core.js`, request logger | Slow or error response. Useful, but background stalls won't appear here — use `[STALL]`. |
 | `[REQ-ERR] <route>: <Error stack>` | `productController.js` | Server-side error in a product endpoint. Full stack, not just `.message`. |
 | `🟢 Change Stream initialized.` | `core.js:325` | Change-stream cursor opened. Should happen once on startup, occasionally on reconnect. |
 | `⚠️ Change Stream closed, will retry...` | `core.js:319` | Change-stream dropped. With the `retryScheduled` guard, only one retry should be pending at a time. |
