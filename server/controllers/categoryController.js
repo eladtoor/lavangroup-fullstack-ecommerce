@@ -1,5 +1,6 @@
 const Product = require("../models/productModel");
 const CategoryImage = require("../models/categoryImageModel");
+const cache = require("../utils/responseCache");
 
 // In-memory cache for categories (avoids rebuilding on every request)
 let categoryCache = {
@@ -21,6 +22,7 @@ const invalidateCategoryCache = () => {
   categoryCache.nav = null;
   categoryCache.full = null;
   categoryCache.lastUpdated = null;
+  cache.clear('categories:nav');
 };
 
 // Lightweight endpoint - returns only category names and structure (NO products)
@@ -32,61 +34,70 @@ const getCategoriesNav = async (req, res) => {
       return res.status(200).json(categoryCache.nav);
     }
 
-    // Fetch only the categories field from products (much faster!)
-    const [products, categoryImages] = await Promise.all([
-      Product.find({}, { "קטגוריות": 1 }).lean(), // Only fetch category field
-      CategoryImage.find().lean(),
-    ]);
+    // Single-flight the rebuild: when the 5-min cache expires, many requests
+    // miss at once — coalesce them so only ONE scan + map-build runs (the logs
+    // showed 5+ nav requests all stampeding the empty cache together).
+    const result = await cache.singleFlight('categories:nav', categoryCache.ttl, async () => {
+      // Fetch only the categories field from products (much faster!)
+      const [products, categoryImages] = await Promise.all([
+        Product.find({}, { "קטגוריות": 1 }).lean(), // Only fetch category field
+        CategoryImage.find().lean(),
+      ]);
 
-    if (!products || products.length === 0) {
+      if (!products || products.length === 0) {
+        return { __empty: true };
+      }
+
+      // Build category image map
+      const categoryImageMap = {};
+      categoryImages.forEach((catImg) => {
+        categoryImageMap[catImg.name] = catImg.image;
+      });
+
+      const categoryMap = {};
+
+      products.forEach((product) => {
+        const categories = product["קטגוריות"];
+        if (!categories) return;
+
+        const categoryPaths = categories.split(",");
+
+        categoryPaths.forEach((categoryPath) => {
+          const categoryParts = categoryPath.split(">");
+          const mainCategory = categoryParts[0].trim();
+          const subCategories = categoryParts.slice(1).map((sub) => sub.trim());
+
+          if (!categoryMap[mainCategory]) {
+            categoryMap[mainCategory] = {
+              categoryName: mainCategory,
+              categoryImage: categoryImageMap[mainCategory] || null,
+              subCategories: [],
+            };
+          }
+
+          if (subCategories.length > 0) {
+            subCategories.forEach((subCategory) => {
+              let foundSubCategory = categoryMap[mainCategory].subCategories.find(
+                (sc) => sc.subCategoryName === subCategory
+              );
+              if (!foundSubCategory) {
+                const imageKey = `${mainCategory} - ${subCategory}`;
+                categoryMap[mainCategory].subCategories.push({
+                  subCategoryName: subCategory,
+                  categoryImage: categoryImageMap[imageKey] || null,
+                });
+              }
+            });
+          }
+        });
+      });
+
+      return Object.values(categoryMap);
+    });
+
+    if (result && result.__empty) {
       return res.status(404).json({ error: "No products found" });
     }
-
-    // Build category image map
-    const categoryImageMap = {};
-    categoryImages.forEach((catImg) => {
-      categoryImageMap[catImg.name] = catImg.image;
-    });
-
-    const categoryMap = {};
-
-    products.forEach((product) => {
-      const categories = product["קטגוריות"];
-      if (!categories) return;
-
-      const categoryPaths = categories.split(",");
-
-      categoryPaths.forEach((categoryPath) => {
-        const categoryParts = categoryPath.split(">");
-        const mainCategory = categoryParts[0].trim();
-        const subCategories = categoryParts.slice(1).map((sub) => sub.trim());
-
-        if (!categoryMap[mainCategory]) {
-          categoryMap[mainCategory] = {
-            categoryName: mainCategory,
-            categoryImage: categoryImageMap[mainCategory] || null,
-            subCategories: [],
-          };
-        }
-
-        if (subCategories.length > 0) {
-          subCategories.forEach((subCategory) => {
-            let foundSubCategory = categoryMap[mainCategory].subCategories.find(
-              (sc) => sc.subCategoryName === subCategory
-            );
-            if (!foundSubCategory) {
-              const imageKey = `${mainCategory} - ${subCategory}`;
-              categoryMap[mainCategory].subCategories.push({
-                subCategoryName: subCategory,
-                categoryImage: categoryImageMap[imageKey] || null,
-              });
-            }
-          });
-        }
-      });
-    });
-
-    const result = Object.values(categoryMap);
 
     // Cache the result
     categoryCache.nav = result;

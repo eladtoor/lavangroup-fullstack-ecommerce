@@ -1,4 +1,17 @@
 const Product = require("../models/productModel");
+const cache = require("../utils/responseCache");
+
+// TTLs for cached read endpoints. Short enough that edits surface quickly
+// (the frontend already keeps its own 5-min localStorage cache), long enough
+// to absorb a crawler stampede.
+const PRODUCTS_TTL = 60 * 1000; // 60s
+
+// Invalidate every product-derived cache key. Called on any product write so
+// edits are reflected within the TTL ceiling at the latest, usually immediately.
+const invalidateProductCaches = () => {
+  cache.clear("products:all");
+  cache.clearPrefix("category:");
+};
 
 // פונקציה ליצירת מוצר חדש
 const createProduct = async (req, res) => {
@@ -10,6 +23,7 @@ const createProduct = async (req, res) => {
 
     const newProduct = new Product(req.body);
     const savedProduct = await newProduct.save();
+    invalidateProductCaches();
     res.status(201).send(savedProduct);
   } catch (error) {
     res.status(400).send(error.message);
@@ -33,9 +47,15 @@ const getProduct = async (req, res) => {
 // פונקציה לשליפת המוצרים מהדאטה בייס ולהמיר את השדות לאנגלית
 const getAllProducts = async (req, res) => {
   try {
-    const products = await Product.find().lean(); // lean() returns plain JS objects, much faster
+    // Single-flight + TTL: one full-collection scan + one JSON.stringify is
+    // shared across all concurrent callers. We cache the SERIALIZED string so
+    // repeat hits skip both the Mongo round-trip and the (CPU-bound) stringify.
+    const body = await cache.singleFlight("products:all", PRODUCTS_TTL, async () => {
+      const products = await Product.find().lean(); // lean() = plain JS objects, much faster
+      return JSON.stringify(products);
+    });
 
-    res.json(products);
+    res.type("application/json").send(body);
   } catch (error) {
     console.error("[REQ-ERR] GET /api/products/getAll:", error);
     res.status(500).json({ error: "Error fetching products" });
@@ -55,6 +75,7 @@ const updateProduct = async (req, res) => {
       return res.status(404).send("Product not found");
     }
 
+    invalidateProductCaches();
     res.status(200).send(updatedProduct);
   } catch (error) {
     res.status(400).send(error.message);
@@ -70,6 +91,7 @@ const deleteProduct = async (req, res) => {
       return res.status(404).send("Product not found");
     }
 
+    invalidateProductCaches();
     res.status(200).send("Product deleted successfully");
   } catch (error) {
     res.status(500).send(error.message);
@@ -87,21 +109,28 @@ const getProductsByCategory = async (req, res) => {
 
     // Build search pattern based on whether subcategory is provided
     // Categories field format: "Main Category" or "Main Category > Sub Category"
-    let searchPattern;
-    if (subCategoryName) {
-      // Search for specific subcategory: "Main > Sub"
-      searchPattern = new RegExp(`(^|,)\\s*${escapeRegex(categoryName)}\\s*>\\s*${escapeRegex(subCategoryName)}\\s*(,|$)`, 'i');
-    } else {
-      // Search for main category (products directly in category, not subcategories)
-      // Match "Category" but not "Category > Subcategory"
-      searchPattern = new RegExp(`(^|,)\\s*${escapeRegex(categoryName)}\\s*(,|$)`, 'i');
-    }
+    // Single-flight + TTL per category key: a crawler hitting the same category
+    // repeatedly (and the COLLSCAN the regex forces) collapses to one query.
+    const cacheKey = `category:${categoryName}::${subCategoryName || ""}`;
+    const body = await cache.singleFlight(cacheKey, PRODUCTS_TTL, async () => {
+      let searchPattern;
+      if (subCategoryName) {
+        // Search for specific subcategory: "Main > Sub"
+        searchPattern = new RegExp(`(^|,)\\s*${escapeRegex(categoryName)}\\s*>\\s*${escapeRegex(subCategoryName)}\\s*(,|$)`, 'i');
+      } else {
+        // Search for main category (products directly in category, not subcategories)
+        // Match "Category" but not "Category > Subcategory"
+        searchPattern = new RegExp(`(^|,)\\s*${escapeRegex(categoryName)}\\s*(,|$)`, 'i');
+      }
 
-    const products = await Product.find({
-      "קטגוריות": { $regex: searchPattern }
-    }).lean();
+      const products = await Product.find({
+        "קטגוריות": { $regex: searchPattern }
+      }).lean();
 
-    res.status(200).json(products);
+      return JSON.stringify(products);
+    });
+
+    res.type("application/json").send(body);
   } catch (error) {
     console.error(`[REQ-ERR] GET /api/products/category/${req.params.categoryName}${req.params.subCategoryName ? '/' + req.params.subCategoryName : ''}:`, error);
     res.status(500).json({ error: error.message });

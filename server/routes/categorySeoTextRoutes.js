@@ -3,11 +3,16 @@ const express = require("express");
 const router = express.Router();
 const CategorySeoText = require("../models/categorySeoTextModel");
 const { adminOnly } = require("../middleware/authMiddleware");
+const cache = require("../utils/responseCache");
+
+const SEO_TTL = 5 * 60 * 1000; // 5 min — SEO text changes rarely
 
 // Get all SEO texts (public for frontend metadata)
 router.get("/", async (req, res) => {
   try {
-    const seoTexts = await CategorySeoText.find();
+    const seoTexts = await cache.singleFlight("seo:__all", SEO_TTL, () =>
+      CategorySeoText.find().lean()
+    );
     res.json(seoTexts);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -19,7 +24,11 @@ router.get("/:name", async (req, res) => {
   try {
     const { name } = req.params;
     const decodedName = decodeURIComponent(name);
-    const seoText = await CategorySeoText.findOne({ name: decodedName });
+    // Single-flight + TTL, and cache the "not found" result too (negative cache)
+    // so crawlers hitting non-existent names can't re-trigger a query each time.
+    const seoText = await cache.singleFlight(`seo:${decodedName}`, SEO_TTL, () =>
+      CategorySeoText.findOne({ name: decodedName }).lean()
+    );
     if (!seoText) {
       return res.status(404).json({ message: "SEO text not found" });
     }
@@ -50,6 +59,8 @@ router.post("/", adminOnly, async (req, res) => {
       },
       { upsert: true, new: true }
     );
+    cache.clear(`seo:${name}`);
+    cache.clear("seo:__all");
     res.json(seoText);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -65,6 +76,8 @@ router.delete("/:name", adminOnly, async (req, res) => {
     if (!result) {
       return res.status(404).json({ message: "SEO text not found" });
     }
+    cache.clear(`seo:${decodedName}`);
+    cache.clear("seo:__all");
     res.json({ message: "SEO text deleted successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });

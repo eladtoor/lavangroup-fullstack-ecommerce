@@ -9,6 +9,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const WebSocket = require("ws");
+const { monitorEventLoopDelay } = require("perf_hooks");
 const { getCategoriesNav } = require("./controllers/categoryController");
 
 // Rate Limiting
@@ -145,13 +146,25 @@ function setupRoutes(app) {
 const MONGO_STATES = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
 
 function startHealthDiagnostics() {
+  // Event-loop delay histogram. When the single 0.5-CPU process is CPU-bound
+  // (the head-of-line-blocking signature), p99 lag spikes into the hundreds of
+  // ms / seconds; if it stays near 0 while requests are slow, the bottleneck is
+  // Mongo-side instead. This is the key discriminator on the next recurrence.
+  const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
+  eventLoopDelay.enable();
+
   const logHealth = () => {
     const mem = process.memoryUsage();
     const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
     const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
+    const rssMB = Math.round(mem.rss / 1024 / 1024);
     const uptimeH = (process.uptime() / 3600).toFixed(1);
     const mongoState = MONGO_STATES[mongoose.connection.readyState] || 'unknown';
-    console.log(`[HEALTH] uptime=${uptimeH}h mem=${heapMB}MB/${heapTotalMB}MB mongo=${mongoState}`);
+    // Nanoseconds -> milliseconds for the event-loop delay percentiles.
+    const loopP99 = Math.round(eventLoopDelay.percentile(99) / 1e6);
+    const loopMax = Math.round(eventLoopDelay.max / 1e6);
+    console.log(`[HEALTH] uptime=${uptimeH}h mem=${heapMB}MB/${heapTotalMB}MB rss=${rssMB}MB loop=p99:${loopP99}ms/max:${loopMax}ms mongo=${mongoState}`);
+    eventLoopDelay.reset(); // per-window percentiles, not cumulative
   };
 
   // Log on startup
