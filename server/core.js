@@ -10,7 +10,9 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const WebSocket = require("ws");
 const { monitorEventLoopDelay } = require("perf_hooks");
-const { getCategoriesNav } = require("./controllers/categoryController");
+const Product = require("./models/productModel");
+const cache = require("./utils/responseCache");
+const { getCategoriesNav, invalidateCategoryCache } = require("./controllers/categoryController");
 
 // Rate Limiting
 const {
@@ -333,13 +335,22 @@ function setupWebSocket(wss) {
         changeStreamInstance.close();
       }
 
-      const productCollection = mongoose.connection.collection("products");
-      changeStreamInstance = productCollection.watch([], {
+      // Watch the model's actual collection. Mongoose maps Product -> the "test"
+      // collection (legacy name, see productModel.js); watching the literal
+      // "products" collection meant the stream never fired on real edits.
+      changeStreamInstance = Product.watch([], {
         fullDocument: 'updateLookup',
         maxAwaitTimeMS: 30000,
       });
 
       changeStreamInstance.on("change", async (change) => {
+        // A product changed — possibly via a direct DB write, not just our API.
+        // Drop the server-side caches so the broadcast and next reads are fresh.
+        // (API write paths already invalidate; this covers out-of-band changes.)
+        cache.clear("products:all");
+        cache.clearPrefix("category:");
+        invalidateCategoryCache();
+
         const productId = change.documentKey?._id;
 
         if (change.operationType === 'delete') {
