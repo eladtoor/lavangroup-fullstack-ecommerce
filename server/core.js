@@ -14,6 +14,13 @@ const Product = require("./models/productModel");
 const cache = require("./utils/responseCache");
 const { getCategoriesNav, invalidateCategoryCache } = require("./controllers/categoryController");
 
+// ============ INCIDENT RECORDER STATE ============
+// Shared state so a future slowdown logs its own cause (see startIncidentRecorder).
+const inFlightRequests = new Map(); // reqId -> { method, url, start }
+let reqSeq = 0;
+let broadcastDepth = 0;             // >0 while a change-stream broadcast is running
+let wssRef = null;                  // live WebSocket server ref, for client count
+
 // Rate Limiting
 const {
   generalLimiter,
@@ -95,10 +102,17 @@ function setupMiddleware(app) {
     next();
   });
 
-  // Request logger — logs slow (>1000ms) or error responses, plus everything in dev
+  // Request logger — logs slow (>1000ms) or error responses, plus everything in dev.
+  // Also tracks in-flight requests so the [STALL] recorder can name what was
+  // running when the event loop blocked.
   app.use((req, res, next) => {
     const start = Date.now();
+    const id = ++reqSeq;
+    inFlightRequests.set(id, { method: req.method, url: req.originalUrl, start });
+    const done = () => inFlightRequests.delete(id);
+    res.on('close', done); // fires even if the client disconnects before finish
     res.on('finish', () => {
+      done();
       if (req.path === '/health') return;
       const ms = Date.now() - start;
       const slow = ms > 1000;
@@ -166,6 +180,18 @@ function startHealthDiagnostics() {
     const loopP99 = Math.round(eventLoopDelay.percentile(99) / 1e6);
     const loopMax = Math.round(eventLoopDelay.max / 1e6);
     console.log(`[HEALTH] uptime=${uptimeH}h mem=${heapMB}MB/${heapTotalMB}MB rss=${rssMB}MB loop=p99:${loopP99}ms/max:${loopMax}ms mongo=${mongoState}`);
+
+    // Slow-burn alarm: flag gradual death (leak / DB drop / sustained CPU) the
+    // moment a threshold is crossed, so it's greppable instead of needing a watch.
+    const MEM_WARN_MB = 300;
+    const reasons = [];
+    if (heapMB > MEM_WARN_MB) reasons.push(`mem=${heapMB}MB>${MEM_WARN_MB}`);
+    if (mongoState !== 'connected') reasons.push(`mongo=${mongoState}`);
+    if (loopP99 > 500) reasons.push(`loop_p99=${loopP99}ms`);
+    if (reasons.length) {
+      console.log(`[HEALTH-WARN] ${reasons.join(' ')} rss=${rssMB}MB cacheKeys=${cache.size()}`);
+    }
+
     eventLoopDelay.reset(); // per-window percentiles, not cumulative
   };
 
@@ -173,6 +199,58 @@ function startHealthDiagnostics() {
   logHealth();
   // Log every 30 minutes
   setInterval(logHealth, 30 * 60 * 1000);
+
+  // Start the sudden-stall recorder alongside the slow-burn health log.
+  startIncidentRecorder();
+}
+
+// ============ INCIDENT RECORDER ============
+// A short recursive probe measures how late it fires versus when it was
+// scheduled — that lateness IS the event-loop block time. When a block exceeds
+// STALL_MS it logs a snapshot the instant the loop recovers, naming what was
+// running (in-flight requests, broadcast state, memory, cache size). This
+// captures sudden stalls that fall between the 30-min [HEALTH] lines and never
+// reach the [REQ] logger (e.g. background broadcast work or GC), so a future
+// slowdown records its own cause.
+//
+// A small probe interval is required: an interval-based tick under-measures a
+// block that starts mid-interval. With PROBE_MS=250 the reported time is within
+// ~250ms of the true block (a slight underestimate).
+function startIncidentRecorder() {
+  const PROBE_MS = 250;
+  const STALL_MS = 700; // report event-loop blocks longer than ~this (filters SSR/GC noise)
+  let expected = Date.now() + PROBE_MS;
+
+  const probe = () => {
+    const now = Date.now();
+    const blocked = now - expected; // how late this probe fired = loop block time
+    expected = now + PROBE_MS;
+
+    if (blocked >= STALL_MS) {
+      const mem = process.memoryUsage();
+      const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+      const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
+      const rssMB = Math.round(mem.rss / 1024 / 1024);
+      const mongoState = MONGO_STATES[mongoose.connection.readyState] || 'unknown';
+      const wsClients = wssRef ? wssRef.clients.size : 0;
+      const oldest = [...inFlightRequests.values()]
+        .sort((a, b) => a.start - b.start)
+        .slice(0, 5)
+        .map((r) => `${r.method} ${r.url} ${now - r.start}ms`);
+
+      console.log(
+        `[STALL] blocked~${blocked}ms inflight=${inFlightRequests.size}` +
+        (oldest.length ? ` oldest=[${oldest.join(', ')}]` : '') +
+        ` mem=${heapMB}MB/${heapTotalMB}MB rss=${rssMB}MB mongo=${mongoState}` +
+        ` wsClients=${wsClients} broadcast=${broadcastDepth > 0 ? 'IN_PROGRESS' : 'no'}` +
+        ` cacheKeys=${cache.size()}`
+      );
+    }
+
+    setTimeout(probe, PROBE_MS).unref(); // never keep the process alive for this timer
+  };
+
+  setTimeout(probe, PROBE_MS).unref();
 }
 
 // ============ DATABASE CONNECTION ============
@@ -211,6 +289,8 @@ async function connectDB(onReady) {
 
 // ============ WEBSOCKET LOGIC ============
 function setupWebSocket(wss) {
+  wssRef = wss; // expose for the [STALL] recorder's client count
+
   // Heartbeat mechanism to detect dead connections
   const heartbeatInterval = setInterval(() => {
     wss.clients.forEach((ws) => {
@@ -225,6 +305,8 @@ function setupWebSocket(wss) {
 
   // Broadcast functions
   const broadcastProductsUpdate = async (changedProductId = null) => {
+    broadcastDepth++;
+    const startedAt = Date.now();
     try {
       let payload;
       let updateType = "PRODUCTS_UPDATED";
@@ -260,10 +342,16 @@ function setupWebSocket(wss) {
       }
     } catch (error) {
       console.error("❌ Error broadcasting product updates:", error);
+    } finally {
+      broadcastDepth--;
+      const dur = Date.now() - startedAt;
+      if (dur > 200) console.log(`[BROADCAST] products ${dur}ms id=${changedProductId || 'all'}`);
     }
   };
 
   const broadcastCategoriesUpdate = async () => {
+    broadcastDepth++;
+    const startedAt = Date.now();
     try {
       const req = {};
       const res = {
@@ -284,6 +372,10 @@ function setupWebSocket(wss) {
       await getCategoriesNav(req, res);
     } catch (error) {
       console.error("❌ Error broadcasting category updates:", error);
+    } finally {
+      broadcastDepth--;
+      const dur = Date.now() - startedAt;
+      if (dur > 200) console.log(`[BROADCAST] categories ${dur}ms`);
     }
   };
 

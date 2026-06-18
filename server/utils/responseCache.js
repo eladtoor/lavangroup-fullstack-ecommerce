@@ -74,4 +74,10 @@ async function singleFlight(key, ttlMs, producer) {
   }
 }
 
-module.exports = { get, set, clear, clearPrefix, singleFlight };
+// Current number of cached keys — surfaced in [STALL]/[HEALTH-WARN] lines so an
+// unbounded-growth incident records its own cache size.
+function size() {
+  return store.size;
+}
+
+module.exports = { get, set, clear, clearPrefix, singleFlight, size };
