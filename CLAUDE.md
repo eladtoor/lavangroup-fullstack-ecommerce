@@ -10,7 +10,7 @@ This file exists because **the same problem keeps coming back every couple of mo
 
 This is the most important operational rule in the repo. **A redeploy makes the symptom vanish for weeks and destroys the only evidence.** That is the documented fingerprint ("redeploy fixes it for weeks"), and on 2026-07-15 we walked into it: the deploy at 13:41 took requests from 10.8s to 0.3s, and the restart — *not* the code change — is what did it (proof below). We then had to wait for the next recurrence.
 
-When it lags: grep the logs (below), run the `/health` test, capture everything **first**. Deploy only once you have the data.
+When it lags: **go straight to THE PLAYBOOK below.** It takes ~3 minutes. Deploy only once you have the data.
 
 ### The symptom has had (at least) two different causes
 
@@ -47,15 +47,11 @@ Improvements, not a cure:
 
 ### The instrumentation that should crack it next time
 
-`[HEALTH]` now carries `pool=open:N/inUse:N/pending:N`, `poolWait=avg/max`, and `mongoCmd=max/slow`, plus two immediate lines: `[POOL]` (a checkout that waited >1s) and `[MONGO-SLOW]` (a command round-trip >1s). Together they decompose a slow request:
+`[HEALTH]` now carries `pool=`, `poolWait=` and `mongoCmd=`, plus two immediate lines — `[POOL]` (checkout waited >1s) and `[MONGO-SLOW]` (round-trip >1s). Together they decompose a slow request:
 
 > **request time = pool wait + command duration + our own code**
 
-| Next recurrence shows | Means |
-|---|---|
-| `poolWait max` ≈ request time | Queuing for a connection (H3). Pool/driver. |
-| `mongoCmd max` ≈ request time | The round-trip itself — wire/network/driver path. Atlas can't show this on M0. |
-| **Neither** | The time is in our code, not Mongo at all. Everything above was misattributed. |
+**→ How to read it: THE PLAYBOOK, Step 3.** Verified live on 2026-07-15: `pool=open:4` matches Atlas's own connection count exactly.
 
 This is deliberately the same play as `5d68fe7` (the incident recorder), which is why 2026-07-15 took one session instead of two months: instrument, don't guess.
 
@@ -71,29 +67,6 @@ The "redeploy fixes it for weeks" framing further down pointed at **runtime stat
 - `197e747` — **Change stream fixed.** It had watched collection `"products"` but data lives in `"test"`, so it never fired. Now uses `Product.watch()` and invalidates the response cache on change. NOTE: this **re-activated H2 broadcasts** (see Still open).
 - `a2cba64` — **The fix.** Single-flight + short-TTL response cache (`server/utils/responseCache.js`) on getAll, category, nav, site-stats, seo-text. N concurrent identical requests collapse to one Mongo op + one serialize. This resolved the slowness.
 
-### Decision rule when it feels slow again
-
-**Step 0: DO NOT REDEPLOY.** Capture everything first — a restart erases it for weeks.
-
-Grep Render logs for `POOL`, `MONGO-SLOW`, `STALL`, `HEALTH-WARN`, `BROADCAST`, then `SLOW`:
-- **`[POOL]` or `[MONGO-SLOW]`** → the 2026-07-15 mystery is solved; the line says whether the time went to a connection checkout or the command round-trip. Start there.
-- A `[STALL]` / `[HEALTH-WARN]` / `[BROADCAST]` line → it **names the cause** (in-flight request, broadcast state, memory, mongo, `cacheKeys`). Fix that.
-- **`[REQ] … SLOW` lines but NO `[STALL]`** → the loop is calm, so the process is **idle-waiting, not working**. This is the 2026-07-15 signature. Read `poolWait` / `mongoCmd` in the nearest `[HEALTH]`; do NOT chase CPU work (it will be ~0%).
-- **Nothing anywhere but it's slow** → probably not the app — **but run the `/health` test before concluding that.** An earlier version of this rule sent you straight upstream, and on 2026-07-15 that would have been wrong: the logs were silent because nothing was *blocked*, yet the cause was still server-side.
-
-### The 10-second discriminator: is it Node or Mongo?
-
-`/health` (`core.js`) returns a static string and never touches Mongo. Compare it against any Mongo-backed endpoint:
-
-```bash
-URL=https://hybrid-app-1-2haj.onrender.com
-for i in 1 2 3; do curl -s -o /dev/null -w "health   %{time_total}s\n" "$URL/health"; done
-for i in 1 2 3; do curl -s -o /dev/null -w "product  %{time_total}s\n" "$URL/api/products/<some-id>"; done
-```
-
-- **`/health` fast + Mongo endpoint slow** → the process is healthy; it's **Mongo**. (2026-07-15: 0.31s vs 15.9s.)
-- **Both slow** → the process/network really is the bottleneck; go back to the `[STALL]` trail.
-
 ### Still open / deferred (a new session can pick these up)
 - **Broadcast debounce (server-only).** Still unimplemented, but **downgraded**: a 1h log sweep on 2026-07-15 during live slowness found **zero `[BROADCAST]` lines**, so this path was not firing at all and is *not* what causes the recurrence. Only act if `[BROADCAST]` lines actually cluster (i.e. during a real bulk product update); then coalesce a burst into one rebuild after ~1-2s of quiet.
 - **Bounded cache — now more relevant.** `responseCache` evicts lazily (on access) with no size cap. As of 2026-07-15 it also holds `product:<id>`, one key per product, on top of `category:` / `seo:<name>`. Absolute size is still small (all products serialize to ~300KB), but the key set is **not** fixed. Watch `cacheKeys` in `[STALL]` / `[HEALTH-WARN]`; if it climbs into the tens of thousands, add a periodic sweep + max-size eviction.
@@ -101,6 +74,71 @@ for i in 1 2 3; do curl -s -o /dev/null -w "product  %{time_total}s\n" "$URL/api
 - **The local `web` build fails without env vars.** `npm run build` in `web/` exits 1 on a clean tree with 51× Firebase `auth/invalid-api-key` — the prerender of client pages needs the Firebase env. Render has them, so it builds fine there. Don't panic at a red local build; compare against a stashed baseline before blaming your changes.
 - **Next 15 migration.** The only prod vuln residual (image-optimizer / RSC DoS highs) is patched only in Next 15 — a deliberate major upgrade, deferred.
 - **`firebase-admin` 13→14** (clears the google-cloud moderate chain) and **dev-only vuln tooling** (concurrently/shell-quote, eslint 9, glob) — deferred, not prod runtime.
+
+## THE PLAYBOOK — when it lags, do exactly this
+
+Whole thing takes ~3 minutes. Do it **before** anything else, especially before deploying.
+
+### Rule zero: DO NOT REDEPLOY
+
+A restart makes the symptom vanish for weeks and takes the evidence with it. That is the entire reason this bug has outlived months of investigation — every recurrence gets cleared before anyone looks. We did it to ourselves on 2026-07-15 with the window wide open and lost it. **Capture first, deploy after.**
+
+### Step 1 — Four greps (~2 min)
+
+Render dashboard → `hybrid-app-1` → **Logs**. Search each term:
+
+| Grep | Meaning if present |
+|---|---|
+| `POOL` | **Jackpot.** A connection checkout waited >1s → it's the pool (H3). |
+| `MONGO-SLOW` | **Jackpot.** A Mongo round-trip took >1s → it's the wire/driver path. |
+| `STALL` | The event loop blocked → a *different* bug from the 2026-07-15 one. Read `oldest=[…]`. |
+| `HEALTH` | Grab the 2-3 lines nearest the slow window — it summarises everything. |
+
+Also worth a look: `HEALTH-WARN` (any alarm), `BROADCAST` (bulk-write storms), `SLOW` (which endpoint), `REQ-ERR` (stack traces).
+
+### Step 2 — The 30-second discriminator
+
+`/health` (`core.js`) returns a static string and never touches Mongo. Compare it to a Mongo-backed endpoint:
+
+```bash
+URL=https://hybrid-app-1-2haj.onrender.com
+for i in 1 2 3; do curl -s -o /dev/null -w "health  %{time_total}s\n" "$URL/health"; done
+for i in 1 2 3; do curl -s -o /dev/null -w "product %{time_total}s\n" "$URL/api/products/670463ee7e9f9f8a73556f37"; done
+```
+
+- **`/health` fast + product slow** → the process and network are fine; it's the Mongo path. (2026-07-15: 0.31s vs 15.9s.)
+- **Both slow** → the process/network really is the bottleneck; follow the `[STALL]` trail.
+
+### Step 3 — Read the decomposition
+
+`[HEALTH]` carries the whole picture. **request time = pool wait + command duration + our own code**:
+
+```
+[HEALTH] uptime=... loop=p99:X/max:Y mongo=connected
+         pool=open:N/inUse:N/pending:N poolWait=avg:X/max:Y mongoCmd=max:X/slow:N
+```
+
+The readings are mutually exclusive — that is the whole point of the instrumentation:
+
+| Reading | Conclusion | Where to look |
+|---|---|---|
+| `poolWait max` ≈ request time | **Pool starvation (H3)** | `maxPoolSize: 10`; the change stream permanently holds a slot; `maxIdleTimeMS: 30000` churning connections. |
+| `mongoCmd max` ≈ request time | **The round-trip itself** | Atlas proved Mongo isn't busy, so the time is on the wire / in the driver's socket handling: dead sockets, DNS/SRV, TLS. |
+| **Both ≈ 0 while requests take 10s** | **The time is in OUR code** — everything above was misattributed | Time the code *around* the `await` in `getProduct`, and the middleware chain. Surprising but decisive. |
+| `loop=p99` high / `[STALL]` present | CPU-bound — the *2026-06-18* bug pattern, not the current one | Read `oldest=[…]` for the endpoint. |
+
+### Step 4 — Record `uptime=`
+
+**Write down the `uptime=` value from `[HEALTH]` when it starts lagging.** It was **644h** on 2026-07-15. If it's ~650h again → something time-based. If it's ~80h → load- or event-triggered. There is no other way to get this number, and it narrows the search enormously.
+
+### Don't bother with
+
+- **Atlas.** Exonerated 2026-07-15: throttling flat zero for 2 months, connections 4 of a 500 cap, ~0.3 ops/s, 677KB dataset. Only revisit if `[MONGO-SLOW]` fires *and* you need to split wire-time from Mongo-time.
+- **The dead theories** listed in STATUS. Re-deriving them is how months got burned.
+
+### Caveat on timing
+
+The `getProduct` cache (2026-07-15) cuts the Mongo op rate ~10x, so it may **delay** the recurrence — and if the trigger is load-related, the next one could look different. **A longer quiet period is not proof it's cured.**
 
 ## Project at a glance
 
@@ -139,59 +177,31 @@ Commits in chronological order (newest at top):
 - `7aebe32` — Diagnostic logging: `[REQ]` middleware for slow/error responses with Mongo state and timing; `[REQ-ERR]` full stacks in product controllers; `.lean()` on `getProduct`; Mongo connected log shows `host/db`.
 - `074c8a9` — Original stale-connection fix: `maxIdleTimeMS: 30000`, await DB before serving, health diagnostics every 30 min (`[HEALTH]` log).
 
-## When the issue returns — diagnostic runbook
+## Reference — details behind the playbook
 
-### Step 1 — Open Render logs
+**The procedure is THE PLAYBOOK above.** This section is only the extra detail it doesn't need inline.
 
-Dashboard: https://dashboard.render.com → the web service → **Logs** tab.
-
-Filter to the time window of a confirmed slow click.
-
-### Step 2 — Find the request
-
-Look for a `[REQ]` line matching the slow request, e.g.
+### Reading `[REQ]` lines
 
 ```
 [REQ] GET /api/products/<id> 200 14820ms mongo=connected SLOW
 ```
 
-(The middleware only logs requests that are slow >1000ms, error >= 400, or any request in dev.)
+The middleware only logs requests that are slow (>1000ms), error (>=400), or anything in dev. `/health` is excluded by design — that exclusion is what makes it a clean control in the Step 2 test.
 
-Three possible signatures:
-
-| Signature | Likely cause | Where to look next |
+| Signature | Likely cause | Next |
 |---|---|---|
-| High `ms`, `mongo=connected`, no `[REQ-ERR]` | Node event-loop blocked or Mongo throttled | Check nearest `[STALL]` and the `loop=` field of `[HEALTH]`; if `loop` is calm, then Atlas Metrics |
-| `[REQ-ERR]` appears with stack | Deterministic bug | Read the stack — fix at the line shown |
-| **No `[REQ]` line at all** for the slow click | Request never reached the server | Check Render Events tab (instance restart? deploy?), CDN, or frontend timeout |
+| High `ms`, `mongo=connected`, no `[REQ-ERR]` | Idle-waiting (2026-07-15) or CPU-bound (2026-06-18) | Playbook Step 3 — `poolWait` / `mongoCmd` / `loop` say which. |
+| `[REQ-ERR]` with a stack | Deterministic bug | Read the stack; fix at the line shown. |
+| **No `[REQ]` line at all** for the slow click | Never reached the server | Render Events tab (restart? deploy?), CDN, or a frontend timeout. |
 
-### Step 3 — Check the closest `[HEALTH]` line
+### Atlas — the cluster is NOT in the first account you'll try
 
-Logged every 30 min, current format:
+Prod is `ac-5jqcamb-shard-00-0X.zqb8c1m.mongodb.net` / **`LavanGroupDB`**, in the **"Lavan Group"** org. The `EladProj` / `license-keys` / `Cluster0` account is a *different app* (`msls-license-server`) — a dead end. Confirm the host from the `✅ MongoDB connected:` log line before trusting any chart.
 
-```
-[HEALTH] uptime=Xh mem=YMB/ZMB rss=RMB loop=p99:Ams/max:Bms mongo=connected
-```
+Checked in full on 2026-07-15 (2-month and 8-hour windows, spanning a live slow period): **Operation Throttling flat ZERO**, **Connections flat 4** (cap 500, `maxPoolSize` 10), **Opcounters ~0.3/s**, Network ~300B/s, dataset 677KB. Mongo is idle and was never throttled — **exonerated, don't re-check**.
 
-- `loop=p99` high (hundreds of ms) or `max` multi-second → **process is CPU/event-loop bound** (the head-of-line pattern). This is the usual cause.
-- `mem` climbing toward 300MB+ over days → a leak (would also emit `[HEALTH-WARN]`). Note: historically `mem` is flat ~95MB, so this would be new.
-- `loop` near 0 but requests slow → Mongo-side; cross-check Atlas (Step 4).
-- A `[STALL]` line near the slow window is more precise than `[HEALTH]` — it captures the exact block and what was running.
-
-### Step 4 — Check MongoDB Atlas (mostly already answered — see below before spending time)
-
-**The cluster is NOT in the Atlas account you probably log into first.** Prod is `ac-5jqcamb-shard-00-0X.zqb8c1m.mongodb.net` / **`LavanGroupDB`**, in the **"Lavan Group"** org. The `EladProj` / `license-keys` / `Cluster0` account is a *different app* (`msls-license-server`) — a dead end. Confirm the host from the `✅ MongoDB connected:` log line before trusting any chart.
-
-Checked in full on 2026-07-15 (2-month and 8-hour windows, spanning a live slow period):
-- **Operation Throttling: flat ZERO** → M0 never throttled. Disproven, do not re-check.
-- **Connections: flat 4** (cap 500; `maxPoolSize` 10) → no leak, no exhaustion.
-- **Opcounters ~0.3/s**, Network ~300B/s, dataset 677KB → Mongo is idle.
-
-So Atlas is exonerated; re-checking it is likely a waste. Note **M0 does not expose Operation Execution Time** — that is exactly why `[MONGO-SLOW]` was added to the app instead. Only revisit Atlas if `[MONGO-SLOW]` shows slow round-trips *and* you need to know whether the time is in Mongo or on the wire.
-
-### Step 5 — Match the timeline
-
-Cross-reference Render `[REQ] ... SLOW` timestamps with Atlas metric spikes. If they coincide, the cause is Mongo-side. If `[REQ]` is slow but Atlas is calm, it's Node-side.
+**M0 does not expose Operation Execution Time.** That is exactly why `[MONGO-SLOW]` had to be added in-app. Only revisit Atlas if `[MONGO-SLOW]` fires *and* you need to split wire-time from Mongo-time.
 
 ## Hypotheses (historical — see STATUS for current truth)
 
