@@ -4,7 +4,10 @@ import { store } from './redux/store';
 
 let socket: WebSocket | null = null;
 let reconnectAttempts = 0;
+let stableTimer: ReturnType<typeof setTimeout> | null = null;
 const maxReconnectAttempts = 10;
+// How long a socket must stay open before we call it healthy and reset backoff.
+const STABLE_AFTER_MS = 30000;
 const isProd = process.env.NODE_ENV === 'production';
 
 export const initializeWebSocket = () => {
@@ -27,7 +30,15 @@ export const initializeWebSocket = () => {
   socket = new WebSocket(getWsBaseUrl());
 
   socket.onopen = () => {
-    reconnectAttempts = 0; // Reset on successful connection
+    // Only treat the connection as healthy once it has STAYED up for a while.
+    // Resetting immediately on open meant a socket that opened and then died
+    // reset the counter every cycle, so the backoff never grew past its first
+    // step and maxReconnectAttempts was unreachable — an endless 1s reconnect
+    // loop. Clear the timer on close so a short-lived socket keeps its count.
+    stableTimer = setTimeout(() => {
+      reconnectAttempts = 0;
+      stableTimer = null;
+    }, STABLE_AFTER_MS);
     if (!isProd) console.log('🟢 WebSocket Connected');
   };
 
@@ -112,11 +123,20 @@ export const initializeWebSocket = () => {
 
   socket.onclose = (event) => {
     socket = null;
-    
+
+    if (stableTimer) {
+      clearTimeout(stableTimer);
+      stableTimer = null;
+    }
+
     if (!isProd) {
       console.log('🔴 WebSocket Disconnected', event.code, event.reason);
     }
-    
+
+    // 1000 = normal closure (e.g. the page is going away). Reconnecting from it
+    // just churns: the old code reconnected on every close regardless of code.
+    if (event.code === 1000) return;
+
     // Exponential backoff reconnection
     if (reconnectAttempts < maxReconnectAttempts) {
       const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Max 30 seconds
@@ -140,8 +160,12 @@ export const initializeWebSocket = () => {
 export const getWebSocket = () => socket;
 
 export const closeWebSocket = () => {
+  if (stableTimer) {
+    clearTimeout(stableTimer);
+    stableTimer = null;
+  }
   if (socket) {
-    socket.close();
+    socket.close(1000); // normal closure — onclose won't schedule a reconnect
     socket = null;
   }
 };
