@@ -55,6 +55,11 @@ const MONGO_OPTIONS = {
   serverSelectionTimeoutMS: 10000,
   heartbeatFrequencyMS: 10000,
   maxIdleTimeMS: 30000, // Close connections idle for 30s+ to prevent stale connections
+  // Emit command events so we can time the actual Mongo round-trip (see
+  // attachCommandMonitoring). Needed to tell "the driver waited" apart from
+  // "Mongo/the network was slow" — Atlas's own charts can't show this on M0.
+  // Overhead is negligible here: the cluster does ~0.3 ops/sec.
+  monitorCommands: true,
 };
 
 const CSP_HEADER = 
@@ -158,6 +163,131 @@ function setupRoutes(app) {
   });
 }
 
+// ============ MONGO POOL INSTRUMENTATION ============
+// Why this exists: on 2026-07-15 Mongo reads took 10-20s while BOTH ends sat
+// idle. The app: CPU ~0%, loop p99 23ms, no [STALL]. Atlas: throttling flat
+// zero, connections flat at 4, ~0.3 ops/s on a 677KB dataset. /health (no
+// Mongo) held 0.31s throughout, so it wasn't the network either. A restart
+// cleared it — the root cause was never found, and it is expected back.
+//
+// The time was going somewhere between Express and Atlas, and nothing logged
+// could say where. These counters close that gap.
+//
+// NOTE: this is NOT proof of H3 (pool starvation). Atlas showed connections
+// flat at 4 and never near maxPoolSize=10 — if checkouts were really queuing,
+// the driver would have opened more. So H3 looks unlikely; this instrumentation
+// exists to KILL it cleanly rather than to confirm it:
+//   wait max ~= request time -> H3 is real after all; the pool is the bottleneck.
+//   pending >= maxPoolSize   -> a genuine backlog (1-2 in flight is normal).
+//   wait ~0 while slow       -> H3 is dead. Read mongoCmd instead (below).
+// The driver emits CMAP events on the MongoClient by default; no option needed.
+const poolStats = {
+  created: 0,          // connectionCreated
+  closed: 0,           // connectionClosed
+  checkOutStarted: 0,
+  checkedOut: 0,
+  checkedIn: 0,
+  checkOutFailed: 0,
+  waitQueue: [],       // FIFO start timestamps of in-flight checkouts
+  waitMaxMs: 0,        // per-window
+  waitSumMs: 0,        // per-window
+  waitCount: 0,        // per-window
+};
+
+// The driver's wait queue is FIFO and maxPoolSize is 10, so this only ever
+// bounds pathology (an unpaired event). Without a cap a leak here would be the
+// exact kind of slow drift this file exists to catch.
+const POOL_WAIT_QUEUE_CAP = 256;
+
+// Report a slow checkout the moment it happens rather than waiting up to 30min
+// for the next [HEALTH] line. This matters specifically for H3: the pool-wait
+// signature does NOT block the event loop, so [STALL] never fires for it and
+// [HEALTH] alone could hide a 10s stall between windows.
+const POOL_SLOW_CHECKOUT_MS = 1000;
+const POOL_LOG_EVERY_MS = 10000; // rate limit: one line per 10s, not one per request
+let lastPoolLogAt = 0;
+
+function attachPoolMonitoring(client) {
+  const settle = () => {
+    const started = poolStats.waitQueue.shift();
+    if (started === undefined) return;
+    const waited = Date.now() - started;
+    if (waited > poolStats.waitMaxMs) poolStats.waitMaxMs = waited;
+    poolStats.waitSumMs += waited;
+    poolStats.waitCount++;
+
+    const now = Date.now();
+    if (waited > POOL_SLOW_CHECKOUT_MS && now - lastPoolLogAt > POOL_LOG_EVERY_MS) {
+      lastPoolLogAt = now;
+      const pool = poolSnapshot();
+      console.log(
+        `[POOL] checkout waited ${waited}ms` +
+        ` open:${pool.open}/inUse:${pool.inUse}/pending:${pool.pending}` +
+        ` maxPoolSize=${MONGO_OPTIONS.maxPoolSize}`
+      );
+    }
+  };
+
+  client.on('connectionCreated', () => { poolStats.created++; });
+  client.on('connectionClosed', () => { poolStats.closed++; });
+  client.on('connectionCheckOutStarted', () => {
+    poolStats.checkOutStarted++;
+    if (poolStats.waitQueue.length >= POOL_WAIT_QUEUE_CAP) poolStats.waitQueue.shift();
+    poolStats.waitQueue.push(Date.now());
+  });
+  client.on('connectionCheckedOut', () => { poolStats.checkedOut++; settle(); });
+  client.on('connectionCheckedIn', () => { poolStats.checkedIn++; });
+  client.on('connectionCheckOutFailed', () => { poolStats.checkOutFailed++; settle(); });
+}
+
+// Instantaneous view, safe to call from any log line.
+// Clamped at 0: the CMAP spec pairs every checkOutStarted with exactly one
+// checkedOut/checkOutFailed, but if that ever slipped, a drifting counter would
+// print a phantom backlog forever and send the next session chasing a ghost.
+// A wrong diagnostic is worse than none, so prefer under-reporting.
+function poolSnapshot() {
+  const open = Math.max(0, poolStats.created - poolStats.closed);
+  const inUse = Math.max(0, poolStats.checkedOut - poolStats.checkedIn);
+  const pending = Math.max(0, poolStats.checkOutStarted - poolStats.checkedOut - poolStats.checkOutFailed);
+  return { open, inUse, pending };
+}
+
+// ============ MONGO COMMAND TIMING ============
+// Completes the decomposition of a slow request:
+//     request time = pool wait  +  command duration  +  our own code
+// Pool wait comes from poolStats above; this measures the command round-trip as
+// the driver sees it (wire send -> reply received). That matters because Atlas
+// ruled itself out on 2026-07-15: Operation Throttling was flat zero for two
+// months, connections sat at 4 (never near maxPoolSize=10), opcounters ~0.3/s
+// on a 677KB dataset. So Mongo was idle while our reads took 10-20s, and M0
+// does not expose Operation Execution Time to prove where the time went.
+// Next recurrence, the two numbers say which it is:
+//   cmd duration ~= request time -> the round-trip itself (network/driver path)
+//   pool wait    ~= request time -> queuing for a connection (H3)
+//   neither      -> the time is in our code, not Mongo at all
+const cmdStats = { maxMs: 0, slowCount: 0, lastLogAt: 0 };
+const CMD_SLOW_MS = 1000;
+const CMD_LOG_EVERY_MS = 10000; // rate limit; a stall would otherwise log per op
+
+function attachCommandMonitoring(client) {
+  const onEnd = (label) => (ev) => {
+    const ms = Math.round(ev.duration);
+    if (ms > cmdStats.maxMs) cmdStats.maxMs = ms;
+    if (ms <= CMD_SLOW_MS) return;
+    cmdStats.slowCount++;
+    const now = Date.now();
+    if (now - cmdStats.lastLogAt <= CMD_LOG_EVERY_MS) return;
+    cmdStats.lastLogAt = now;
+    const pool = poolSnapshot();
+    console.log(
+      `[MONGO-SLOW] ${ev.commandName} ${label} ${ms}ms` +
+      ` pool=open:${pool.open}/inUse:${pool.inUse}/pending:${pool.pending}`
+    );
+  };
+  client.on('commandSucceeded', onEnd('ok'));
+  client.on('commandFailed', onEnd('FAILED'));
+}
+
 // ============ HEALTH DIAGNOSTICS ============
 const MONGO_STATES = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
 
@@ -179,20 +309,51 @@ function startHealthDiagnostics() {
     // Nanoseconds -> milliseconds for the event-loop delay percentiles.
     const loopP99 = Math.round(eventLoopDelay.percentile(99) / 1e6);
     const loopMax = Math.round(eventLoopDelay.max / 1e6);
-    console.log(`[HEALTH] uptime=${uptimeH}h mem=${heapMB}MB/${heapTotalMB}MB rss=${rssMB}MB loop=p99:${loopP99}ms/max:${loopMax}ms mongo=${mongoState}`);
+    const pool = poolSnapshot();
+    const waitAvg = poolStats.waitCount ? Math.round(poolStats.waitSumMs / poolStats.waitCount) : 0;
+    console.log(
+      `[HEALTH] uptime=${uptimeH}h mem=${heapMB}MB/${heapTotalMB}MB rss=${rssMB}MB` +
+      ` loop=p99:${loopP99}ms/max:${loopMax}ms mongo=${mongoState}` +
+      ` pool=open:${pool.open}/inUse:${pool.inUse}/pending:${pool.pending}` +
+      ` poolWait=avg:${waitAvg}ms/max:${poolStats.waitMaxMs}ms` +
+      ` mongoCmd=max:${cmdStats.maxMs}ms/slow:${cmdStats.slowCount}`
+    );
 
     // Slow-burn alarm: flag gradual death (leak / DB drop / sustained CPU) the
     // moment a threshold is crossed, so it's greppable instead of needing a watch.
     const MEM_WARN_MB = 300;
+    const POOL_WAIT_WARN_MS = 1000;
     const reasons = [];
     if (heapMB > MEM_WARN_MB) reasons.push(`mem=${heapMB}MB>${MEM_WARN_MB}`);
     if (mongoState !== 'connected') reasons.push(`mongo=${mongoState}`);
     if (loopP99 > 500) reasons.push(`loop_p99=${loopP99}ms`);
+    // The H3 alarm: a checkout that waited seconds means requests are queuing for
+    // a connection, not running queries — the line that would have named the
+    // 2026-07-15 cause outright. Wait time is the real signal; `pending` alone is
+    // not, because 1-2 in-flight checkouts at the instant of a 30-min sample is
+    // normal under any load. Only flag a backlog deeper than the pool itself.
+    if (poolStats.waitMaxMs > POOL_WAIT_WARN_MS) reasons.push(`pool_wait_max=${poolStats.waitMaxMs}ms`);
+    if (pool.pending >= MONGO_OPTIONS.maxPoolSize) reasons.push(`pool_pending=${pool.pending}>=maxPoolSize`);
+    if (poolStats.checkOutFailed > 0) reasons.push(`pool_checkout_failed=${poolStats.checkOutFailed}`);
+    // A slow round-trip with a calm pool means the time is on the wire or in
+    // Mongo — the half of the decomposition Atlas can't show us on M0.
+    if (cmdStats.maxMs > POOL_WAIT_WARN_MS) reasons.push(`mongo_cmd_max=${cmdStats.maxMs}ms`);
     if (reasons.length) {
-      console.log(`[HEALTH-WARN] ${reasons.join(' ')} rss=${rssMB}MB cacheKeys=${cache.size()}`);
+      console.log(
+        `[HEALTH-WARN] ${reasons.join(' ')} rss=${rssMB}MB cacheKeys=${cache.size()}` +
+        ` pool=open:${pool.open}/inUse:${pool.inUse}/pending:${pool.pending}`
+      );
     }
 
     eventLoopDelay.reset(); // per-window percentiles, not cumulative
+    // Same for pool wait and command timing: per-window, so a spike can't be
+    // diluted by weeks of healthy ops. open/inUse/pending are live gauges of
+    // current state, not window stats — they must NOT reset.
+    poolStats.waitMaxMs = 0;
+    poolStats.waitSumMs = 0;
+    poolStats.waitCount = 0;
+    cmdStats.maxMs = 0;
+    cmdStats.slowCount = 0;
   };
 
   // Log on startup
@@ -238,12 +399,15 @@ function startIncidentRecorder() {
         .slice(0, 5)
         .map((r) => `${r.method} ${r.url} ${now - r.start}ms`);
 
+      const pool = poolSnapshot();
+
       console.log(
         `[STALL] blocked~${blocked}ms inflight=${inFlightRequests.size}` +
         (oldest.length ? ` oldest=[${oldest.join(', ')}]` : '') +
         ` mem=${heapMB}MB/${heapTotalMB}MB rss=${rssMB}MB mongo=${mongoState}` +
         ` wsClients=${wsClients} broadcast=${broadcastDepth > 0 ? 'IN_PROGRESS' : 'no'}` +
-        ` cacheKeys=${cache.size()}`
+        ` cacheKeys=${cache.size()}` +
+        ` pool=open:${pool.open}/inUse:${pool.inUse}/pending:${pool.pending}`
       );
     }
 
@@ -279,6 +443,15 @@ async function connectDB(onReady) {
   try {
     await mongoose.connect(process.env.MONGO_URI, MONGO_OPTIONS);
     console.log(`✅ MongoDB connected: ${mongoose.connection.host}/${mongoose.connection.name}`);
+    // Attach pool monitoring before serving. Never let instrumentation take the
+    // site down: if the driver internals ever move, log it and carry on.
+    try {
+      const client = mongoose.connection.getClient();
+      attachPoolMonitoring(client);
+      attachCommandMonitoring(client);
+    } catch (err) {
+      console.error('❌ Could not attach Mongo pool monitoring:', err.message);
+    }
     startHealthDiagnostics();
     if (onChangeStreamReady) onChangeStreamReady();
   } catch (err) {
