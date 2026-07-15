@@ -8,9 +8,12 @@ const PRODUCTS_TTL = 60 * 1000; // 60s
 
 // Invalidate every product-derived cache key. Called on any product write so
 // edits are reflected within the TTL ceiling at the latest, usually immediately.
+// Note "product:" does not prefix-match "products:all" (the 8th char differs),
+// so the single-product keys and the all-products key are cleared separately.
 const invalidateProductCaches = () => {
   cache.clear("products:all");
   cache.clearPrefix("category:");
+  cache.clearPrefix("product:");
 };
 
 // פונקציה ליצירת מוצר חדש
@@ -33,11 +36,19 @@ const createProduct = async (req, res) => {
 // פונקציה לקבלת פרטי מוצר לפי מזהה
 const getProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).lean();
-    if (!product) {
+    // Single-flight + TTL per product id. Every product page SSR hits this, and
+    // ?_rsc= prefetches fan out ~10 at a time off one category page, so it was
+    // the last hot read still issuing an uncached Mongo op per request.
+    // Caching `null` negative-caches 404s (see responseCache.get).
+    const body = await cache.singleFlight(`product:${req.params.id}`, PRODUCTS_TTL, async () => {
+      const product = await Product.findById(req.params.id).lean();
+      return product ? JSON.stringify(product) : null;
+    });
+
+    if (body === null) {
       return res.status(404).send("Product not found");
     }
-    res.status(200).send(product);
+    res.type("application/json").send(body);
   } catch (error) {
     console.error(`[REQ-ERR] GET /api/products/${req.params.id}:`, error);
     res.status(500).send(error.message);

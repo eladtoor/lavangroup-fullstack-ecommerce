@@ -441,6 +441,7 @@ function setupWebSocket(wss) {
         // (API write paths already invalidate; this covers out-of-band changes.)
         cache.clear("products:all");
         cache.clearPrefix("category:");
+        cache.clearPrefix("product:");
         invalidateCategoryCache();
 
         const productId = change.documentKey?._id;

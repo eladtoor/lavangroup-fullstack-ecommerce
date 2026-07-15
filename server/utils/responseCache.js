@@ -10,8 +10,14 @@
  * operation whose result is shared, then caches it for a short TTL. A 50-request
  * stampede becomes one Mongo op + one serialization served to all 50.
  *
- * Bounded by design: keys are a small, fixed set (products:all, per-category,
- * site-stats, seo:<name>), so the Map never grows unboundedly.
+ * Sizing: products:all and site-stats are single slots, but category:<name>,
+ * seo:<name> and product:<id> are one key per distinct value, so the Map scales
+ * with catalog size (and, for keys derived from the URL, with whatever a crawler
+ * asks for). All products serialized together are ~300KB, so the product: family
+ * is small in absolute terms — but this is NOT a fixed key set. Entries evict
+ * lazily on access, with no periodic sweep and no max size. `size()` is surfaced
+ * as cacheKeys in the [STALL]/[HEALTH-WARN] lines; if it ever climbs into the
+ * tens of thousands, add a sweep + max-size eviction.
  */
 
 const store = new Map(); // key -> { value, expires }
