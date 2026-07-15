@@ -2,9 +2,37 @@
 
 This file exists because **the same problem keeps coming back every couple of months**. Read it before suggesting changes — most of the obvious moves have already been tried, and there are infra constraints that rule out the easy answers.
 
-## STATUS — 2026-06-18: root cause found & fixed (READ THIS FIRST)
+## STATUS — 2026-07-15: THE SYMPTOM HAS TWO DIFFERENT CAUSES (READ THIS FIRST)
 
-The "redeploy fixes it for weeks" framing further down pointed at **runtime state drift / heap growth (H1)**. **That was wrong.** A 35-day production `[HEALTH]` trace showed heap dead-flat at ~95MB (cap 460MB) with no restarts — no leak, no drift. **H1 is disproven; do not re-chase it.**
+**The single most important thing in this file:** "clicking a single product hangs" has now been traced to **two unrelated causes**. The symptom is identical both times. **Never diagnose this from the symptom — always read the logs first.** The 2026-06-18 fix was correct and is still working; the 2026-07-15 recurrence was something else entirely, and assuming otherwise would have wasted the session.
+
+| Cause | Signature | Status |
+|---|---|---|
+| **CPU head-of-line blocking** | `[STALL]` present, `[HEALTH] loop=p99` high | Fixed `a2cba64` (2026-06-18). Verified still working 2026-07-15: `getAll` cache hit = 0.43s. |
+| **Mongo-side latency** | **No `[STALL]`**, `loop` calm, CPU ~0%, requests still 10-20s | Fixed 2026-07-15 (this session) — see below. |
+
+### 2026-07-15 — recurrence diagnosed: Mongo-side, NOT the app
+
+Evidence from a live slow window (the incident recorder from `5d68fe7` did its job — the discriminator it was built for worked exactly as designed):
+- Render **CPU flat ~0-5%** of the 0.5 limit for 12h; heap flat ~90MB; uptime 644h (no restart).
+- `[HEALTH] loop=p99:23ms/max:194ms` — the event loop is **never blocked**.
+- **Zero `[STALL]`, zero `[BROADCAST]`, zero `[HEALTH-WARN]`** while requests took 10-20s. The recorder was alive (`[HEALTH]` lines printing, same fn starts both) — the silence was real evidence, not a dead sensor.
+- Decisive test: `/health` (no Mongo) rock-steady **0.31s**, while an identical indexed `findById` swung **0.4s → 15.9s**. The process was *idle-waiting on Mongo*, not working.
+
+**Root cause: `getProduct` was the only hot read `a2cba64` never cached** — a bare `Product.findById(id).lean()`, i.e. exactly the endpoint the symptom names. Every product page SSR hit it uncached, and Next's default prefetch-on-viewport fanned out ~10 concurrent full page renders per category grid, each fetching the product **twice** (generateMetadata + page). That op rate saturated the M0 shared tier; once M0 is saturated *everything* Mongo-backed goes slow, including trivial lookups.
+
+**What shipped 2026-07-15** (server-side is the load-bearing fix; the web changes cut the load that caused it):
+- `productController.js` — `getProduct` now uses `cache.singleFlight("product:<id>")` with the 60s TTL. Verified: 10 concurrent requests → **1 Mongo op**. Note `"product:"` does NOT prefix-match `"products:all"`, so both are cleared separately.
+- `ProductCard.tsx` — `prefetch={false}`, cutting ~10 speculative SSRs per category grid to 1 on click.
+- `product/[productIdSlug]/page.tsx` — React `cache()` dedupes the double product fetch (`fetch` uses `no-store`, which opts out of Next's own dedupe).
+- `sitemap.ts` — data cached via `unstable_cache({revalidate:3600})`. **`force-dynamic` must stay**: the Render build runs before the server exists, so a static sitemap would fetch a dead API. The old route-level `revalidate` was dead code under `force-dynamic`.
+- `websocket.ts` — `reconnectAttempts` reset only after 30s of stability (it was reset in `onopen`, so a socket that opened then died reset the counter every cycle → endless 1s reconnect loop, backoff never grew, `maxReconnectAttempts` unreachable). Also no longer reconnects on a clean 1000 close.
+
+**Still unconfirmed:** M0 saturation is inferred, not proven — what's *proven* is erratic Mongo latency while the app idles. If it recurs with a calm loop, check Atlas Metrics (Operation Execution Time, Connections vs the 500 cap) to confirm.
+
+### The older 2026-06-18 finding (still valid)
+
+The "redeploy fixes it for weeks" framing further down pointed at **runtime state drift / heap growth (H1)**. **That was wrong.** A 35-day production `[HEALTH]` trace showed heap dead-flat at ~95MB (cap 460MB) with no restarts — no leak, no drift. **H1 is disproven; do not re-chase it.** (Re-confirmed 2026-07-15.)
 
 **Actual root cause: load-induced head-of-line blocking on the single 0.5-CPU process.** Under a crawler walking the category tree, every hot read endpoint did a full-collection scan + synchronous `JSON.stringify` (and the regex category query forces a COLLSCAN). On half a CPU these serialize through one event loop, so requests pile up and release in *waves* — even a trivial indexed `findById` took 30–120s. It is congestion **under load**, not slow accumulation; "redeploy fixes it" merely drops the queued work. Confirmed fixed in prod: the same requests went **36,000ms → 36ms**.
 
@@ -17,12 +45,27 @@ The "redeploy fixes it for weeks" framing further down pointed at **runtime stat
 ### Decision rule when it feels slow again
 Open Render logs and grep for `STALL`, `HEALTH-WARN`, `BROADCAST`, then `SLOW`:
 - A `[STALL]` / `[HEALTH-WARN]` / `[BROADCAST]` line → it **names the cause** (in-flight request, broadcast state, memory, mongo, `cacheKeys`). Fix that.
-- A `[REQ] … SLOW` line but no `[STALL]` → a single slow request/endpoint (read the URL).
-- **Nothing** in any of them but it's slow → not the app: look upstream (CDN / Render platform / network / frontend cache).
+- **`[REQ] … SLOW` lines but NO `[STALL]`** → the event loop is calm, so the process is **idle-waiting on I/O, not working**. This is the 2026-07-15 signature: **Mongo-side**. Confirm in 10 seconds with the `/health` test below, then look for an uncached Mongo op on the slow path. Do NOT go chasing CPU/event-loop work — CPU will be ~0%.
+- **Nothing** in any of them but it's slow → probably not the app (CDN / Render platform / network / frontend cache) — **but run the `/health` test before concluding that.** An earlier version of this rule sent you straight upstream here, and in 2026-07-15 that would have been wrong: the logs were silent because nothing was blocked, yet the cause was still server-side (Mongo).
+
+### The 10-second discriminator: is it Node or Mongo?
+
+`/health` (`core.js`) returns a static string and never touches Mongo. Compare it against any Mongo-backed endpoint:
+
+```bash
+URL=https://hybrid-app-1-2haj.onrender.com
+for i in 1 2 3; do curl -s -o /dev/null -w "health   %{time_total}s\n" "$URL/health"; done
+for i in 1 2 3; do curl -s -o /dev/null -w "product  %{time_total}s\n" "$URL/api/products/<some-id>"; done
+```
+
+- **`/health` fast + Mongo endpoint slow** → the process is healthy; it's **Mongo**. (2026-07-15: 0.31s vs 15.9s.)
+- **Both slow** → the process/network really is the bottleneck; go back to the `[STALL]` trail.
 
 ### Still open / deferred (a new session can pick these up)
-- **Broadcast debounce (server-only).** `197e747` turned change-stream broadcasts back on; each product change runs a synchronous full category rebuild + product broadcast *off the request path* (invisible to `[REQ]`; shows as `[BROADCAST]` / `[STALL]` with `broadcast=IN_PROGRESS`). Fine for single edits; under a **bulk product update** it fires many ~1s rebuilds back-to-back. If `[BROADCAST]` lines cluster, debounce the change-stream handler (coalesce a burst into one rebuild after ~1–2s of quiet). This is the live H2 follow-up.
-- **Bounded cache.** `responseCache` evicts lazily (on access) with no size cap. A long crawl of many distinct `category:` / `seo:` keys can grow it. Watch `cacheKeys` in `[STALL]` / `[HEALTH-WARN]`; if it climbs into the tens of thousands, add a periodic sweep + max-size eviction.
+- **Broadcast debounce (server-only).** Still unimplemented, but **downgraded**: a 1h log sweep on 2026-07-15 during live slowness found **zero `[BROADCAST]` lines**, so this path was not firing at all and is *not* what causes the recurrence. Only act if `[BROADCAST]` lines actually cluster (i.e. during a real bulk product update); then coalesce a burst into one rebuild after ~1-2s of quiet.
+- **Bounded cache — now more relevant.** `responseCache` evicts lazily (on access) with no size cap. As of 2026-07-15 it also holds `product:<id>`, one key per product, on top of `category:` / `seo:<name>`. Absolute size is still small (all products serialize to ~300KB), but the key set is **not** fixed. Watch `cacheKeys` in `[STALL]` / `[HEALTH-WARN]`; if it climbs into the tens of thousands, add a periodic sweep + max-size eviction.
+- **Self-referential HTTP (not yet fixed).** `NEXT_PUBLIC_API_URL` points at the public domain, so Next server components fetch the Express API by going **out to Render's edge and back into the same process** (`combined.js` serves both). Every SSR data fetch pays a full public round-trip. Pointing it at `http://127.0.0.1:$PORT` — or calling the controllers in-process — would remove that. Left alone 2026-07-15 because `NEXT_PUBLIC_*` is inlined at build time and CPU was not the bottleneck; revisit if CPU ever is.
+- **The local `web` build fails without env vars.** `npm run build` in `web/` exits 1 on a clean tree with 51× Firebase `auth/invalid-api-key` — the prerender of client pages needs the Firebase env. Render has them, so it builds fine there. Don't panic at a red local build; compare against a stashed baseline before blaming your changes.
 - **Next 15 migration.** The only prod vuln residual (image-optimizer / RSC DoS highs) is patched only in Next 15 — a deliberate major upgrade, deferred.
 - **`firebase-admin` 13→14** (clears the google-cloud moderate chain) and **dev-only vuln tooling** (concurrently/shell-quote, eslint 9, glob) — deferred, not prod runtime.
 
@@ -168,4 +211,4 @@ If logs show repeated `⚠️ Change Stream closed, will retry...` clusters with
 
 ## Memory and plan files
 
-There is a long-form planning document at `C:\Users\eladt\.claude\plans\last-time-i-work-atomic-sutherland.md` with ranked hypotheses, evidence, and proposed-but-not-yet-implemented fixes. Read it if you need more depth than this runbook. It is not in the repo — it's local to the user's machine.
+This runbook is self-contained — the ranked hypotheses, evidence, and deferred fixes are all above. An earlier local planning document was folded in here by `7d1a235` and no longer exists; don't go looking for one.
