@@ -44,10 +44,15 @@ export default function ProductCard({
   const materialGroup = product.materialGroup;
   const materialGroupLabel = materialGroup ? materialGroupTranslations[materialGroup] || materialGroup : null;
 
+  // prefetch={false}: the product route is dynamic, so App Router's default
+  // prefetch-on-viewport renders the whole page server-side — a category grid
+  // scrolling ~10 cards into view fired ~10 full SSRs, each re-fetching the
+  // product and the category nav. Load the page on click instead.
   return (
     <Link
       href={`/product/${product._id}-${slug}`}
       scroll={false}
+      prefetch={false}
       className="block"
       title={`פתח מוצר: ${product.שם}`}
       aria-label={`פתח מוצר: ${product.שם}`}

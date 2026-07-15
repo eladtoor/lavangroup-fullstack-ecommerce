@@ -1,11 +1,28 @@
 import { MetadataRoute } from 'next';
+import { unstable_cache } from 'next/cache';
 import { fetchAllProducts, fetchCategories } from '@/lib/api';
 import { buildCategoryUrl, CANONICAL_BASE_URL } from '@/lib/category-slugs';
 import { buildProductCanonicalPath } from '@/lib/product-slug';
 
-// Generate sitemap at runtime, not build time
+// Generate sitemap at runtime, not build time. This must stay force-dynamic:
+// the Render build runs `npm run build` before the server process exists, so a
+// statically generated sitemap would fetch an API that isn't listening yet.
 export const dynamic = 'force-dynamic';
-export const revalidate = 3600; // Regenerate every hour
+
+// A route-level `revalidate` is ignored under force-dynamic, so every hit used
+// to refetch the whole catalog and rebuild up to 5000 URLs. Cache the data
+// instead — same hourly refresh, without giving up runtime generation.
+const getSitemapData = unstable_cache(
+  async () => {
+    const [categoriesData, productsData] = await Promise.all([
+      fetchCategories(),
+      fetchAllProducts().catch(() => null), // products are optional; categories are not
+    ]);
+    return { categoriesData, productsData };
+  },
+  ['sitemap-data'],
+  { revalidate: 3600 }
+);
 
 type SubCategory = {
   subCategoryName: string;
@@ -48,9 +65,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Dynamic routes
     // Note: Assuming 'טמבור' is the default company name as seen in categoryActions.ts
     // If multiple companies are supported, this logic needs to be updated to fetch companies first.
-    const companyName = 'טמבור'; 
-    const categoriesData = await fetchCategories();
-    
+    const companyName = 'טמבור';
+    const { categoriesData, productsData } = await getSitemapData();
+
     // categoriesData might be an array or object based on API response
     // categoryActions.ts treats it as array then wraps in object
     const categories: Category[] = Array.isArray(categoriesData) 
@@ -91,7 +108,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Note: If you have a LOT of products, consider capping or generating sitemap index files.
     const productRoutes: MetadataRoute.Sitemap = [];
     try {
-      const productsData = await fetchAllProducts();
       const productsArray: any[] = Array.isArray(productsData) ? productsData : Object.values(productsData || {});
 
       // Basic cap to avoid producing a massive sitemap response.

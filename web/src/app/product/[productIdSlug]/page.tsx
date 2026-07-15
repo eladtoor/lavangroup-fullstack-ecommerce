@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import ProductDetails from '@/components/ProductDetails';
@@ -17,6 +18,13 @@ type Props = {
   params: { productIdSlug: string };
 };
 
+// generateMetadata and the page component both need the same product, and both
+// run for every render of this dynamic route. fetch() uses cache: 'no-store',
+// which opts out of Next's own request dedupe, so without this each render made
+// two identical API round-trips. React cache() scopes one call per request.
+const getProduct = cache((id: string) => fetchProductById(id));
+const getCategories = cache(() => fetchCategories());
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lavangroup.co.il';
   const { id } = parseProductIdSlug(params.productIdSlug);
@@ -26,7 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   try {
-    const product = await fetchProductById(id);
+    const product = await getProduct(id);
     if (!product || !product._id) {
       return { title: 'מוצר לא נמצא | Lavangroup', robots: { index: false, follow: true } };
     }
@@ -86,7 +94,7 @@ export default async function ProductPage({ params }: Props) {
 
   let product: any;
   try {
-    product = await fetchProductById(id);
+    product = await getProduct(id);
   } catch {
     notFound();
   }
@@ -128,7 +136,7 @@ export default async function ProductPage({ params }: Props) {
   const breadcrumbItems: Array<{ label: string; href?: string }> = [{ label: 'דף הבית', href: '/' }];
 
   try {
-    const categoriesData = await fetchCategories();
+    const categoriesData = await getCategories();
     const categories: any[] = Array.isArray(categoriesData)
       ? categoriesData
       : Object.values(categoriesData || {});
