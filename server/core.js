@@ -269,6 +269,9 @@ const cmdStats = { maxMs: 0, slowCount: 0, lastLogAt: 0 };
 const CMD_SLOW_MS = 1000;
 const CMD_LOG_EVERY_MS = 10000; // rate limit; a stall would otherwise log per op
 
+// Clients we've already hooked. WeakSet so a replaced client can be collected.
+const monitoredClients = new WeakSet();
+
 function attachCommandMonitoring(client) {
   const onEnd = (label) => (ev) => {
     const ms = Math.round(ev.duration);
@@ -441,17 +444,28 @@ async function connectDB(onReady) {
   });
 
   try {
-    await mongoose.connect(process.env.MONGO_URI, MONGO_OPTIONS);
-    console.log(`✅ MongoDB connected: ${mongoose.connection.host}/${mongoose.connection.name}`);
-    // Attach pool monitoring before serving. Never let instrumentation take the
-    // site down: if the driver internals ever move, log it and carry on.
+    // Attach monitoring BEFORE awaiting. mongoose builds the MongoClient
+    // synchronously when connect() is called, but the pool opens its first
+    // (minPoolSize) connections while connecting — so attaching after the await
+    // misses those `connectionCreated` events forever. `open` would then
+    // under-count, and when those same connections later close, `closed` would
+    // increment with no matching create and drive it negative. Never let
+    // instrumentation take the site down: if driver internals move, log and go on.
+    const connecting = mongoose.connect(process.env.MONGO_URI, MONGO_OPTIONS);
     try {
       const client = mongoose.connection.getClient();
-      attachPoolMonitoring(client);
-      attachCommandMonitoring(client);
+      // connectDB retries itself on failure; guard so a retry can't attach a
+      // second set of listeners to the same client and double-count everything.
+      if (!monitoredClients.has(client)) {
+        monitoredClients.add(client);
+        attachPoolMonitoring(client);
+        attachCommandMonitoring(client);
+      }
     } catch (err) {
       console.error('❌ Could not attach Mongo pool monitoring:', err.message);
     }
+    await connecting;
+    console.log(`✅ MongoDB connected: ${mongoose.connection.host}/${mongoose.connection.name}`);
     startHealthDiagnostics();
     if (onChangeStreamReady) onChangeStreamReady();
   } catch (err) {
