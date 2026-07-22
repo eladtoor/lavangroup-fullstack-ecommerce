@@ -2,7 +2,65 @@
 
 This file exists because **the same problem keeps coming back every couple of months**. Read it before suggesting changes — most of the obvious moves have already been tried, and there are infra constraints that rule out the easy answers.
 
-## STATUS — 2026-07-22: ROOT CAUSE FOUND AND FIXED (READ THIS FIRST)
+## ⏳ OPEN — verify the 2026-07-22 fix (do this on or after 2026-07-29)
+
+**There is an unfinished job here. Do this before anything else.**
+
+The change-stream leak in STATUS below was fixed and deployed on 2026-07-22 (`7b4a6ce`). Post-deploy numbers were good — `poolWait avg 12140ms → 105ms`, cold cache misses `28.6s → 0.42s`. **None of that proves the fix works.** A restart alone clears this symptom for weeks; that is the bug's entire signature, and it is exactly how a premature "fixed" claim got written into this file on 2026-07-15. The deploy proved the *diagnosis*. Only a week of real Atlas reconnects with `changeStreams=` still at `1` proves the *cure*.
+
+The user planned to check back on/after **2026-07-29**.
+
+### 🚫 Do not push ANYTHING to `main` until this is verified
+
+`render.yaml` sets `autoDeploy: true`, so **any** push — including a one-line docs edit to this very file — rebuilds and restarts the service. A restart kills the change streams, resets `uptime=`, and puts the leak counter back to 1. **That silently destroys the week of observation**, and the site will look healthy afterwards regardless of whether the fix works.
+
+The "don't redeploy" rule everyone remembers is about the *lagging* state. This is the other half: don't redeploy during the *watching* state either. If something genuinely must ship this week, note the restart date here and restart the week's count from it.
+
+### The 30-second check — no dashboard needed
+
+Any product id not requested in the last 60s is a guaranteed response-cache miss, so it must reach Mongo:
+
+```bash
+URL=https://hybrid-app-1-2haj.onrender.com
+for id in 6806971c0afb86cc5bbad72a 680697f90afb86cc5bbad731 680698960afb86cc5bbad738; do
+  curl -s -o /dev/null -w "cold  %{time_total}s\n" "$URL/api/products/$id"
+done
+curl -s -o /dev/null -w "health %{time_total}s\n" "$URL/health"
+```
+
+Cold misses should land within ~2x `/health` (was 0.42-0.81s vs 0.40s). **15-30s means it is back.**
+
+⚠️ Request each id **once**. A repeat within 60s is a cache hit that never touches Mongo and will look fast no matter how broken things are. If these ids have gone stale, pull fresh ones from `/api/products/getAll`.
+
+### The three greps — Render → `hybrid-app-1` → Logs, range **7 days**
+
+| # | Grep | Pass | Fail |
+|---|---|---|---|
+| 1 | `HEALTH` | `changeStreams=1` on every line, `inUse:` low, `poolWait=avg` in the tens of ms | `changeStreams>1`, or `inUse` climbing toward 10 |
+| 2 | `Change Stream` | each `closed` line stands alone | 2+ `closed` lines sharing one timestamp = that many streams alive |
+| 3 | `HEALTH-WARN` | absent | `change_streams=N>1`, `pool_wait_max` |
+
+### ⚠️ The null result is not a pass
+
+Grep 2 only means something **if reconnects actually happened**. If there are zero `⚠️ Change Stream closed` lines all week, the leak was never exercised and the fix is **untested, not proven**. Say so plainly and extend the window rather than closing this out. For reference, before the fix reconnect bursts hit on Jul 19, 20 and 21 — three in four days — so a completely quiet week would itself be unusual and worth a second look.
+
+Same logic applies to the curl check: a fast site one week in is expected either way. It rules the failure *in*, never *out*.
+
+### If it is slow again
+
+**DO NOT REDEPLOY.** Capture first — go to THE PLAYBOOK below. Then read `changeStreams=` in `[HEALTH]`:
+
+- **`>1`** → the fix is incomplete; another path in `setupChangeStream` (`server/core.js`) still orphans a stream. Note how fast it climbed.
+- **`=1` but `poolWait` high** → something *else* is holding pool connections. New cause — instrument, don't guess.
+- **`=1`, `poolWait` ~0, `mongoCmd` ~0** → not the pool at all. A fourth distinct cause; follow THE PLAYBOOK's Step 3 table.
+
+### When it passes
+
+Delete this whole block, and change the STATUS heading below to confirmed — recording the date and **how many reconnects it survived**, since that number is the actual evidence.
+
+## STATUS — 2026-07-22: ROOT CAUSE FOUND — FIX SHIPPED, VERIFICATION PENDING (READ THIS FIRST)
+
+> The root cause below is proven. The **fix** is not yet — see the OPEN block above.
 
 **The change stream leaked.** `setupChangeStream` in `server/core.js` orphaned a still-running change stream on every reconnect. Each orphan sat on its own 30-second `awaitData` `getMore`, holding one Mongo pool connection forever. They accumulated one per reconnect until all 10 pool slots were gone; from then on **every** query waited ~12s for a connection to briefly free up. Fixed 2026-07-22.
 
