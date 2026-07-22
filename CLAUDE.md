@@ -43,6 +43,8 @@ Still the most important operational rule here. A restart hides the symptom for 
 
 First thing to check now: `changeStreams=` in `[HEALTH]`. Healthy is `1`. Anything higher means this leak is back, and `[HEALTH-WARN]` will say `change_streams=N>1`.
 
+(The very first `[HEALTH]` line of a boot — `uptime=0.0h` — reads `changeStreams=0`. That is just ordering: the health log fires before the stream finishes connecting. Confirm with `🟢 Change Stream initialized. live=1` a moment later, and the next 30-min line will read `1`.)
+
 ### The symptom has had three different causes
 
 | Cause | Signature | Status |
@@ -68,6 +70,16 @@ The 2026-07-15 session concluded pool exhaustion was "unlikely, since Atlas show
 **Dead theories — still dead, do not re-chase:** H1 heap/GC (flat heap, twice confirmed) · H2 broadcast storm (zero `[BROADCAST]`) · M0 saturation (throttling = 0) · Atlas connection cap (14 of 500) · CPU/event-loop (0%, calm) · network/CDN (`/health` steady) · connection warm-up cost (cold misses are 0.3s after a restart) · the response cache being stripped (no broadcasts fired).
 
 ### What shipped 2026-07-22 — the fix
+
+Verified in production immediately after deploy (`7b4a6ce`, instance `brk96`):
+
+```
+before  pool=open:14/inUse:10/pending:4  poolWait=avg:12140ms/max:29480ms  + [HEALTH-WARN]
+after   pool=open:4/inUse:0/pending:0    poolWait=avg:105ms/max:105ms      no warnings
+🟢 Change Stream initialized. live=1
+```
+
+Seven never-requested product ids (guaranteed cache misses) returned in 0.42-0.81s, matching `/health`. Before the deploy the same test gave 28.6-30.8s. **But a restart alone would produce this too** — the durable proof is `changeStreams=` staying at `1` over the coming week.
 
 `server/core.js`, one function:
 
