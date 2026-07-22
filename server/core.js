@@ -167,19 +167,24 @@ function setupRoutes(app) {
 // Why this exists: on 2026-07-15 Mongo reads took 10-20s while BOTH ends sat
 // idle. The app: CPU ~0%, loop p99 23ms, no [STALL]. Atlas: throttling flat
 // zero, connections flat at 4, ~0.3 ops/s on a 677KB dataset. /health (no
-// Mongo) held 0.31s throughout, so it wasn't the network either. A restart
-// cleared it — the root cause was never found, and it is expected back.
+// Mongo) held 0.31s throughout, so it wasn't the network either. Nothing logged
+// could say where the time went, so these counters were added to close the gap.
 //
-// The time was going somewhere between Express and Atlas, and nothing logged
-// could say where. These counters close that gap.
+// THEY WORKED. On the first recurrence (2026-07-22) they read:
+//   pool=open:14/inUse:10/pending:4  poolWait=avg:12140ms/max:29480ms
+// i.e. H3 (pool starvation) all along — every query queuing ~12s for one of 10
+// connections held by leaked change streams (see setupChangeStream).
 //
-// NOTE: this is NOT proof of H3 (pool starvation). Atlas showed connections
-// flat at 4 and never near maxPoolSize=10 — if checkouts were really queuing,
-// the driver would have opened more. So H3 looks unlikely; this instrumentation
-// exists to KILL it cleanly rather than to confirm it:
-//   wait max ~= request time -> H3 is real after all; the pool is the bottleneck.
+// The note that used to live here called H3 "unlikely, since Atlas showed
+// connections flat at 4." That reasoning was sound but the sample was taken
+// mid-climb: the leak was ~4 deep then and hit the cap of 10 five days later.
+// A leak measured early is indistinguishable from a healthy steady state —
+// which is exactly why these are logged every 30 min instead of spot-checked.
+//
+// Reading them:
+//   wait max ~= request time -> pool starvation; check changeStreams= too.
 //   pending >= maxPoolSize   -> a genuine backlog (1-2 in flight is normal).
-//   wait ~0 while slow       -> H3 is dead. Read mongoCmd instead (below).
+//   wait ~0 while slow       -> not the pool. Read mongoCmd instead (below).
 // The driver emits CMAP events on the MongoClient by default; no option needed.
 const poolStats = {
   created: 0,          // connectionCreated
@@ -261,13 +266,33 @@ function poolSnapshot() {
 // months, connections sat at 4 (never near maxPoolSize=10), opcounters ~0.3/s
 // on a 677KB dataset. So Mongo was idle while our reads took 10-20s, and M0
 // does not expose Operation Execution Time to prove where the time went.
-// Next recurrence, the two numbers say which it is:
+//
+// Worth knowing in hindsight: that "idle Atlas" reading was itself produced by
+// the bug — ~10 leaked change-stream cursors each returning every 30s IS ~0.3
+// ops/s. A quiet database is consistent with a broken app; it does not clear it.
+//
+// The two numbers say which it is:
 //   cmd duration ~= request time -> the round-trip itself (network/driver path)
-//   pool wait    ~= request time -> queuing for a connection (H3)
+//   pool wait    ~= request time -> queuing for a connection (H3) <- 2026-07-22
 //   neither      -> the time is in our code, not Mongo at all
-const cmdStats = { maxMs: 0, slowCount: 0, lastLogAt: 0 };
+const cmdStats = { maxMs: 0, slowCount: 0, lastLogAt: 0, csAwait: 0 };
 const CMD_SLOW_MS = 1000;
 const CMD_LOG_EVERY_MS = 10000; // rate limit; a stall would otherwise log per op
+
+// How long the change stream parks a getMore waiting for data. It is the only
+// awaitData cursor in this codebase, so a getMore lasting about this long is
+// normal idling, not a slow command — see isChangeStreamAwait below.
+const CHANGE_STREAM_AWAIT_MS = 30000;
+
+// A change stream's getMore blocks for up to maxAwaitTimeMS by design, so
+// counting it as a "slow command" made [MONGO-SLOW] print a 30s line every 10s
+// forever and pinned mongo_cmd_max at ~30000ms, keeping [HEALTH-WARN] on
+// permanently. A warning that is always on hides the ones that matter. These are
+// counted separately (csAwait) rather than dropped, so nothing is hidden — and
+// changeStreams= is now the real signal for a leak.
+function isChangeStreamAwait(ev, ms) {
+  return ev.commandName === 'getMore' && ms >= CHANGE_STREAM_AWAIT_MS * 0.9;
+}
 
 // Clients we've already hooked. WeakSet so a replaced client can be collected.
 const monitoredClients = new WeakSet();
@@ -275,6 +300,7 @@ const monitoredClients = new WeakSet();
 function attachCommandMonitoring(client) {
   const onEnd = (label) => (ev) => {
     const ms = Math.round(ev.duration);
+    if (isChangeStreamAwait(ev, ms)) { cmdStats.csAwait++; return; }
     if (ms > cmdStats.maxMs) cmdStats.maxMs = ms;
     if (ms <= CMD_SLOW_MS) return;
     cmdStats.slowCount++;
@@ -319,7 +345,8 @@ function startHealthDiagnostics() {
       ` loop=p99:${loopP99}ms/max:${loopMax}ms mongo=${mongoState}` +
       ` pool=open:${pool.open}/inUse:${pool.inUse}/pending:${pool.pending}` +
       ` poolWait=avg:${waitAvg}ms/max:${poolStats.waitMaxMs}ms` +
-      ` mongoCmd=max:${cmdStats.maxMs}ms/slow:${cmdStats.slowCount}`
+      ` mongoCmd=max:${cmdStats.maxMs}ms/slow:${cmdStats.slowCount}` +
+      ` changeStreams=${liveChangeStreams}/awaits:${cmdStats.csAwait}`
     );
 
     // Slow-burn alarm: flag gradual death (leak / DB drop / sustained CPU) the
@@ -341,6 +368,10 @@ function startHealthDiagnostics() {
     // A slow round-trip with a calm pool means the time is on the wire or in
     // Mongo — the half of the decomposition Atlas can't show us on M0.
     if (cmdStats.maxMs > POOL_WAIT_WARN_MS) reasons.push(`mongo_cmd_max=${cmdStats.maxMs}ms`);
+    // More than one change stream means the 2026-07-22 leak is back. Flag it
+    // early: by the time it reaches maxPoolSize the site is already unusable,
+    // and every other number here still looks healthy while it climbs.
+    if (liveChangeStreams > 1) reasons.push(`change_streams=${liveChangeStreams}>1`);
     if (reasons.length) {
       console.log(
         `[HEALTH-WARN] ${reasons.join(' ')} rss=${rssMB}MB cacheKeys=${cache.size()}` +
@@ -357,6 +388,7 @@ function startHealthDiagnostics() {
     poolStats.waitCount = 0;
     cmdStats.maxMs = 0;
     cmdStats.slowCount = 0;
+    cmdStats.csAwait = 0;
   };
 
   // Log on startup
@@ -423,6 +455,15 @@ function startIncidentRecorder() {
 // ============ DATABASE CONNECTION ============
 let changeStreamInstance = null;
 let onChangeStreamReady = null;
+
+// Live count of change streams we believe are open. This exists because of the
+// 2026-07-22 incident: setupChangeStream() used to orphan a still-running stream
+// on every retry, and each orphan held one pool connection forever on its 30s
+// awaitData getMore. Ten of them saturated maxPoolSize and every query then
+// queued ~12s for a connection. Nothing in the logs counted streams, so the
+// cause was invisible for months — the symptom looked like "Mongo is slow".
+// Steady state is 1. Anything above that is the leak coming back.
+let liveChangeStreams = 0;
 
 async function connectDB(onReady) {
   onChangeStreamReady = onReady;
@@ -610,19 +651,47 @@ function setupWebSocket(wss) {
 
   const setupChangeStream = () => {
     try {
+      // Retire the previous stream BEFORE creating the replacement, and detach
+      // its listeners first.
+      //
+      // The bug this replaces (root cause of the 2026-07-22 slowdown): close()
+      // is async, so the old stream's "close" event fired *after* the line below
+      // had already assigned the new stream to changeStreamInstance. The old
+      // stream's handler then nulled that variable — dropping our only reference
+      // to a healthy, still-running stream — and scheduled yet another retry.
+      // The orphan kept polling every 30s and holding a pool connection forever,
+      // unreachable by any later close(). One leaked per retry until all 10 pool
+      // slots were gone. removeAllListeners() first means teardown can no longer
+      // re-enter this function.
       if (changeStreamInstance) {
-        changeStreamInstance.close();
+        const old = changeStreamInstance;
+        changeStreamInstance = null;
+        old.removeAllListeners();
+        // Not awaited — we want the replacement up now. The decrement must run on
+        // BOTH paths: a rejected close() still means we have let this stream go,
+        // and leaving the count inflated would raise a permanent false leak alarm.
+        Promise.resolve(old.close())
+          .catch((err) => console.error("❌ Error closing previous Change Stream:", err.message))
+          .finally(() => { liveChangeStreams = Math.max(0, liveChangeStreams - 1); });
       }
 
       // Watch the model's actual collection. Mongoose maps Product -> the "test"
       // collection (legacy name, see productModel.js); watching the literal
       // "products" collection meant the stream never fired on real edits.
-      changeStreamInstance = Product.watch([], {
+      const stream = Product.watch([], {
         fullDocument: 'updateLookup',
-        maxAwaitTimeMS: 30000,
+        maxAwaitTimeMS: CHANGE_STREAM_AWAIT_MS,
       });
+      changeStreamInstance = stream;
+      liveChangeStreams++;
 
-      changeStreamInstance.on("change", async (change) => {
+      // Every handler below is bound to `stream` and checks its own identity.
+      // Previously they referenced the module-level variable, so a stale stream's
+      // events acted on whichever stream happened to be current — the exact
+      // confusion that produced the leak.
+      const isCurrent = () => stream === changeStreamInstance;
+
+      stream.on("change", async (change) => {
         // A product changed — possibly via a direct DB write, not just our API.
         // Drop the server-side caches so the broadcast and next reads are fresh.
         // (API write paths already invalidate; this covers out-of-band changes.)
@@ -644,22 +713,28 @@ function setupWebSocket(wss) {
         broadcastCategoriesUpdate();
       });
 
-      changeStreamInstance.on("error", (error) => {
+      stream.on("error", (error) => {
         console.error("❌ Change Stream error:", error);
-        if (changeStreamInstance) {
-          changeStreamInstance.close();
-          changeStreamInstance = null;
-        }
+        if (!isCurrent()) return; // a retired stream's error is not ours to act on
+        changeStreamInstance = null;
+        stream.removeAllListeners();
+        Promise.resolve(stream.close())
+          .catch(() => {}) // already logged above; the retry is what matters
+          .finally(() => { liveChangeStreams = Math.max(0, liveChangeStreams - 1); });
         scheduleRetry();
       });
 
-      changeStreamInstance.on("close", () => {
+      stream.on("close", () => {
+        liveChangeStreams = Math.max(0, liveChangeStreams - 1);
         console.warn("⚠️ Change Stream closed, will retry...");
+        if (!isCurrent()) return; // already replaced; do not touch the live stream
         changeStreamInstance = null;
         scheduleRetry();
       });
 
-      console.log("🟢 Change Stream initialized.");
+      // The count is on this line so a leak is visible in the same grep that
+      // shows the reconnect that caused it. Healthy value is live=1.
+      console.log(`🟢 Change Stream initialized. live=${liveChangeStreams}`);
     } catch (error) {
       console.error("❌ Error setting up Change Stream:", error);
       scheduleRetry();
@@ -680,8 +755,15 @@ function setupGracefulShutdown(server, wss, heartbeatInterval) {
     console.log(`\n⚠️ ${signal} received, closing gracefully...`);
     
     if (heartbeatInterval) clearInterval(heartbeatInterval);
-    if (changeStreamInstance) changeStreamInstance.close();
-    
+    if (changeStreamInstance) {
+      // Detach first: otherwise the close event schedules a reconnect while we
+      // are shutting down, which would open a fresh stream mid-teardown.
+      const stream = changeStreamInstance;
+      changeStreamInstance = null;
+      stream.removeAllListeners();
+      await Promise.resolve(stream.close()).catch(() => {});
+    }
+
     wss.close(() => console.log('✅ WebSocket server closed'));
     server.close(() => console.log('✅ HTTP server closed'));
     

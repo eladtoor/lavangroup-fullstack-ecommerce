@@ -2,24 +2,56 @@
 
 This file exists because **the same problem keeps coming back every couple of months**. Read it before suggesting changes — most of the obvious moves have already been tried, and there are infra constraints that rule out the easy answers.
 
-## STATUS — 2026-07-15: ROOT CAUSE STILL UNKNOWN. EXPECT IT BACK. (READ THIS FIRST)
+## STATUS — 2026-07-22: ROOT CAUSE FOUND AND FIXED (READ THIS FIRST)
 
-**Do not believe any claim that this is "fixed".** The 2026-07-15 session shipped real improvements and eliminated most of the suspect list, but **it did not find the root cause**, and the slowness will most likely return. Read this whole section before touching anything — it exists mainly to stop you re-deriving dead theories.
+**The change stream leaked.** `setupChangeStream` in `server/core.js` orphaned a still-running change stream on every reconnect. Each orphan sat on its own 30-second `awaitData` `getMore`, holding one Mongo pool connection forever. They accumulated one per reconnect until all 10 pool slots were gone; from then on **every** query waited ~12s for a connection to briefly free up. Fixed 2026-07-22.
 
-### ⛔ WHEN IT LAGS AGAIN: DO NOT REDEPLOY
+The instrumentation shipped on 2026-07-15 named it on its first recurrence, which is exactly what it was built for. Do not undo that pattern.
 
-This is the most important operational rule in the repo. **A redeploy makes the symptom vanish for weeks and destroys the only evidence.** That is the documented fingerprint ("redeploy fixes it for weeks"), and on 2026-07-15 we walked into it: the deploy at 13:41 took requests from 10.8s to 0.3s, and the restart — *not* the code change — is what did it (proof below). We then had to wait for the next recurrence.
+### The proof (captured live, before deploying)
 
-When it lags: **go straight to THE PLAYBOOK below.** It takes ~3 minutes. Deploy only once you have the data.
+```
+[HEALTH] uptime=167.0h loop=p99:22ms/max:202ms mongo=connected
+         pool=open:14/inUse:10/pending:4
+         poolWait=avg:12140ms/max:29480ms mongoCmd=max:30206ms/slow:600
+[MONGO-SLOW] getMore ok 30001ms pool=open:14/inUse:10/pending:5
+[POOL]       checkout waited 13554ms open:14/inUse:10/pending:5 maxPoolSize=10
+```
 
-### The symptom has had (at least) two different causes
+`inUse:10` of `maxPoolSize:10`, identical in every 30-min sample for 12+ hours. `30001ms` is `maxAwaitTimeMS` — the change stream's own poll. Counting `⚠️ Change Stream closed` lines landing in the *same second* gives the number of streams alive at that moment: **1 → 3 → 5 → 10 → 11 → 10** over four days.
+
+### It was never the product page
+
+Measured live during the incident:
+
+| Endpoint | Cache miss | Cache hit |
+|---|---|---|
+| `/health` (no Mongo) | 0.40s | — |
+| `/api/site-stats` | 16.6s | 0.46s |
+| `/api/products/:id` | 29.0s | 1.0s |
+| `/api/products/getAll` | **28.8s** | 0.78s |
+
+**Every cache miss was slow, `getAll` included.** The symptom only *looked* product-specific because `products:all` and `category:` keys are almost always warm, while `product:<id>` (334 ids) and `site-stats` (single slot, 60s TTL, low traffic) almost always miss. The homepage's 4 stat cards hang for the same 15s as a product page, and they share no code — just a cache miss. **A "fast" page proves nothing; it may just be a cache hit or the frontend's 5-min localStorage cache.**
+
+### Why it fooled everyone for months
+
+The app really was idle — CPU ~0%, event loop calm, heap flat, no `[STALL]`, and Atlas genuinely doing nothing (10 cursors returning every 30s ≈ 0.3 ops/s, which is exactly the opcounter reading that "exonerated" Atlas). The orphans block on `awaitData`; they never compute. And a restart kills them, which is the entire "redeploy fixes it for weeks" fingerprint: the leak restarts from one stream and has to climb back to 10.
+
+### ⛔ IF IT COMES BACK: DO NOT REDEPLOY FIRST
+
+Still the most important operational rule here. A restart hides the symptom for weeks and takes the evidence with it. **Go to THE PLAYBOOK below (~3 minutes), then deploy.**
+
+First thing to check now: `changeStreams=` in `[HEALTH]`. Healthy is `1`. Anything higher means this leak is back, and `[HEALTH-WARN]` will say `change_streams=N>1`.
+
+### The symptom has had three different causes
 
 | Cause | Signature | Status |
 |---|---|---|
-| **CPU head-of-line blocking** | `[STALL]` present, `[HEALTH] loop=p99` high | **Fixed** `a2cba64` (2026-06-18). Verified still working 2026-07-15: `getAll` cache hit = 0.43s. |
-| **The 2026-07-15 one** | **No `[STALL]`**, loop calm, CPU ~0%, Atlas idle — yet requests take 10-20s | **UNSOLVED.** Cleared by restart only. |
+| **CPU head-of-line blocking** | `[STALL]` present, `[HEALTH] loop=p99` high | **Fixed** `a2cba64` (2026-06-18). |
+| **Change-stream leak → pool starvation** | `poolWait avg` seconds, `inUse` = `maxPoolSize`, `changeStreams>1`, loop calm | **Fixed** 2026-07-22. |
+| Anything else | — | Read the logs. Don't assume. |
 
-**Never diagnose this from the symptom.** "Clicking a product hangs" has meant two unrelated things. Always read the logs first.
+**Never diagnose this from the symptom.** "Clicking a product hangs" has now meant three unrelated things.
 
 ### 2026-07-15 — what is PROVEN
 
@@ -29,11 +61,23 @@ When it lags: **go straight to THE PLAYBOOK below.** It takes ~3 minutes. Deploy
 - **The same request twice, back-to-back, gave 10s then 0.5s** — every cycle for 4 minutes. Not slow work; *waiting*.
 - **The restart is what fixed it, not the cache.** After deploy, a **cold cache miss on a never-requested product** returned in 0.30s. A miss goes to Mongo either way — if the cache were doing the work, a miss would still be slow. It wasn't.
 
-### What that leaves
+### Where that reasoning went wrong
 
-Something **inside the Node process** that degrades over weeks, makes Mongo reads take ~10s while both the app *and* the database sit idle, and is wiped by a restart. The time is going somewhere between Express and Atlas — the driver/connection path — but pool exhaustion looks unlikely too, since Atlas showed connections flat at 4 (if checkouts were queuing, the driver would have opened more, up to 10).
+The 2026-07-15 session concluded pool exhaustion was "unlikely, since Atlas showed connections flat at 4 — if checkouts were queuing, the driver would have opened more, up to 10." **That inference was correct but the reading was taken too early.** The leak was only ~4 streams deep at that point. It reached 10 on 2026-07-20 and the pool has been pinned ever since. The lesson is not "Atlas lied" — it is that **a leak measured mid-climb looks like a healthy steady state.** Prefer a trend over a snapshot.
 
-**Dead theories — do not re-chase:** H1 heap/GC (flat heap, twice confirmed) · H2 broadcast storm (zero `[BROADCAST]`) · M0 saturation (throttling = 0) · Atlas connection cap (4 of 500) · CPU/event-loop (0%, calm) · network/CDN (`/health` steady) · connection warm-up cost (cold misses are 0.3s) · the response cache being stripped (no broadcasts fired).
+**Dead theories — still dead, do not re-chase:** H1 heap/GC (flat heap, twice confirmed) · H2 broadcast storm (zero `[BROADCAST]`) · M0 saturation (throttling = 0) · Atlas connection cap (14 of 500) · CPU/event-loop (0%, calm) · network/CDN (`/health` steady) · connection warm-up cost (cold misses are 0.3s after a restart) · the response cache being stripped (no broadcasts fired).
+
+### What shipped 2026-07-22 — the fix
+
+`server/core.js`, one function:
+
+- **`setupChangeStream` no longer orphans streams.** Each stream's handlers are now bound to *that* stream and guarded with an identity check (`stream === changeStreamInstance`), instead of referencing the module-level variable — which is how a retired stream's late `close` event came to null out its healthy successor. A stream being retired now has `removeAllListeners()` called **before** `close()`, so teardown can't re-enter `setupChangeStream` and start another cycle.
+- **`changeStreams=N` gauge** in `[HEALTH]`, and `change_streams=N>1` in `[HEALTH-WARN]`. The counter that would have made this a five-minute diagnosis.
+- **`🟢 Change Stream initialized. live=N`** so a leak shows up in the same grep as the reconnect that caused it.
+- **The change stream's own 30s `getMore` is excluded from `[MONGO-SLOW]`** (counted as `awaits:` instead). It was pinning `mongoCmd max` at ~30000ms and keeping `[HEALTH-WARN]` on permanently — an always-on warning hides the real ones.
+- Graceful shutdown detaches listeners before closing, so it can't spawn a fresh stream mid-teardown.
+
+`maxPoolSize` was deliberately **not** raised: it would only have delayed the ceiling and hidden the leak longer.
 
 ### What shipped 2026-07-15
 
@@ -69,7 +113,7 @@ The "redeploy fixes it for weeks" framing further down pointed at **runtime stat
 
 ### Still open / deferred (a new session can pick these up)
 - **Broadcast debounce (server-only).** Still unimplemented, but **downgraded**: a 1h log sweep on 2026-07-15 during live slowness found **zero `[BROADCAST]` lines**, so this path was not firing at all and is *not* what causes the recurrence. Only act if `[BROADCAST]` lines actually cluster (i.e. during a real bulk product update); then coalesce a burst into one rebuild after ~1-2s of quiet.
-- **Bounded cache — now more relevant.** `responseCache` evicts lazily (on access) with no size cap. As of 2026-07-15 it also holds `product:<id>`, one key per product, on top of `category:` / `seo:<name>`. Absolute size is still small (all products serialize to ~300KB), but the key set is **not** fixed. Watch `cacheKeys` in `[STALL]` / `[HEALTH-WARN]`; if it climbs into the tens of thousands, add a periodic sweep + max-size eviction.
+- **Bounded cache.** `responseCache` evicts lazily (on access) with no size cap. It holds `product:<id>` (334 products) on top of `category:` / `seo:<name>`. Measured `cacheKeys=445` on 2026-07-22, drifting up by ~1/hour — nowhere near a problem, and heap is flat at ~85MB. Leave it. Revisit only if `cacheKeys` reaches the tens of thousands, which would mean crawler-driven key growth, not catalog size.
 - **Self-referential HTTP (not yet fixed).** `NEXT_PUBLIC_API_URL` points at the public domain, so Next server components fetch the Express API by going **out to Render's edge and back into the same process** (`combined.js` serves both). Every SSR data fetch pays a full public round-trip. Pointing it at `http://127.0.0.1:$PORT` — or calling the controllers in-process — would remove that. Left alone 2026-07-15 because `NEXT_PUBLIC_*` is inlined at build time and CPU was not the bottleneck; revisit if CPU ever is.
 - **The local `web` build fails without env vars.** `npm run build` in `web/` exits 1 on a clean tree with 51× Firebase `auth/invalid-api-key` — the prerender of client pages needs the Firebase env. Render has them, so it builds fine there. Don't panic at a red local build; compare against a stashed baseline before blaming your changes.
 - **Next 15 migration.** The only prod vuln residual (image-optimizer / RSC DoS highs) is patched only in Next 15 — a deliberate major upgrade, deferred.
@@ -89,10 +133,11 @@ Render dashboard → `hybrid-app-1` → **Logs**. Search each term:
 
 | Grep | Meaning if present |
 |---|---|
-| `POOL` | **Jackpot.** A connection checkout waited >1s → it's the pool (H3). |
-| `MONGO-SLOW` | **Jackpot.** A Mongo round-trip took >1s → it's the wire/driver path. |
-| `STALL` | The event loop blocked → a *different* bug from the 2026-07-15 one. Read `oldest=[…]`. |
-| `HEALTH` | Grab the 2-3 lines nearest the slow window — it summarises everything. |
+| `HEALTH` | **Start here.** Grab the 2-3 lines nearest the slow window — it summarises everything. Check `changeStreams=` (must be `1`) and `inUse:` vs `maxPoolSize` first. |
+| `POOL` | **Jackpot.** A connection checkout waited >1s → it's the pool (H3). This is what 2026-07-22 turned out to be. |
+| `MONGO-SLOW` | A Mongo round-trip took >1s → the wire/driver path. The change stream's own 30s idle polls are excluded, so anything here is real. |
+| `Change Stream` | Count the `closed` lines **sharing one timestamp** = streams alive. >1 is the leak. |
+| `STALL` | The event loop blocked → the *2026-06-18* CPU bug, not the pool one. Read `oldest=[…]`. |
 
 Also worth a look: `HEALTH-WARN` (any alarm), `BROADCAST` (bulk-write storms), `SLOW` (which endpoint), `REQ-ERR` (stack traces).
 
@@ -106,8 +151,10 @@ for i in 1 2 3; do curl -s -o /dev/null -w "health  %{time_total}s\n" "$URL/heal
 for i in 1 2 3; do curl -s -o /dev/null -w "product %{time_total}s\n" "$URL/api/products/670463ee7e9f9f8a73556f37"; done
 ```
 
-- **`/health` fast + product slow** → the process and network are fine; it's the Mongo path. (2026-07-15: 0.31s vs 15.9s.)
+- **`/health` fast + product slow** → the process and network are fine; it's the Mongo path. (2026-07-15: 0.31s vs 15.9s. 2026-07-22: 0.40s vs 29.0s.)
 - **Both slow** → the process/network really is the bottleneck; follow the `[STALL]` trail.
+
+**Request each Mongo-backed URL twice**, and use a *fresh* product id the site has not served recently. The response cache has a 60s TTL, so a second identical request is a cache hit that never reaches Mongo — on 2026-07-22 the same id gave 29.0s then 1.0s. A "fast" reading from a warm key proves nothing. `/api/products/getAll` cold was **28.8s**, so do not assume the problem is the product endpoint.
 
 ### Step 3 — Read the decomposition
 
@@ -120,25 +167,27 @@ for i in 1 2 3; do curl -s -o /dev/null -w "product %{time_total}s\n" "$URL/api/
 
 The readings are mutually exclusive — that is the whole point of the instrumentation:
 
+This table was written before the instrumentation had ever fired in anger. **On its first real use (2026-07-22) row 1 was the hit** — the procedure works, so trust it.
+
 | Reading | Conclusion | Where to look |
 |---|---|---|
-| `poolWait max` ≈ request time | **Pool starvation (H3)** | `maxPoolSize: 10`; the change stream permanently holds a slot; `maxIdleTimeMS: 30000` churning connections. |
+| `poolWait max` ≈ request time | **Pool starvation (H3)** — ✅ this was the 2026-07-22 cause | Check `changeStreams=` and `inUse:` vs `maxPoolSize` on the same line. If `inUse` is pinned at 10, something is holding connections, not using them. |
 | `mongoCmd max` ≈ request time | **The round-trip itself** | Atlas proved Mongo isn't busy, so the time is on the wire / in the driver's socket handling: dead sockets, DNS/SRV, TLS. |
 | **Both ≈ 0 while requests take 10s** | **The time is in OUR code** — everything above was misattributed | Time the code *around* the `await` in `getProduct`, and the middleware chain. Surprising but decisive. |
 | `loop=p99` high / `[STALL]` present | CPU-bound — the *2026-06-18* bug pattern, not the current one | Read `oldest=[…]` for the endpoint. |
 
 ### Step 4 — Record `uptime=`
 
-**Write down the `uptime=` value from `[HEALTH]` when it starts lagging.** It was **644h** on 2026-07-15. If it's ~650h again → something time-based. If it's ~80h → load- or event-triggered. There is no other way to get this number, and it narrows the search enormously.
+**Write down the `uptime=` value from `[HEALTH]` when it starts lagging.** It was **644h** on 2026-07-15 and **167h** on 2026-07-22 — so onset is *not* time-based, it tracks how many Atlas reconnects have happened. If a future recurrence has a similar spread, look for another event-counted leak rather than a timer.
 
 ### Don't bother with
 
-- **Atlas.** Exonerated 2026-07-15: throttling flat zero for 2 months, connections 4 of a 500 cap, ~0.3 ops/s, 677KB dataset. Only revisit if `[MONGO-SLOW]` fires *and* you need to split wire-time from Mongo-time.
+- **Atlas.** Exonerated twice. Its "~0.3 ops/s, idle" reading was real — and was *caused by* the leak (10 cursors returning every 30s). **A quiet Atlas is consistent with the app being broken**; it does not clear the app. Only revisit if `[MONGO-SLOW]` fires *and* you need to split wire-time from Mongo-time.
 - **The dead theories** listed in STATUS. Re-deriving them is how months got burned.
 
 ### Caveat on timing
 
-The `getProduct` cache (2026-07-15) cuts the Mongo op rate ~10x, so it may **delay** the recurrence — and if the trigger is load-related, the next one could look different. **A longer quiet period is not proof it's cured.**
+The 2026-07-22 fix removes the leak, but **a restart alone also clears the symptom for weeks** — so "it's fast now" right after a deploy proves nothing. The real check is `changeStreams=` staying at `1` in `[HEALTH]` across several `⚠️ Change Stream closed` events over the following week. Before the fix it reached 3-5 within hours of the first disconnect and 10 within a day.
 
 ## Project at a glance
 
@@ -166,7 +215,9 @@ The `getProduct` cache (2026-07-15) cuts the Mongo op rate ~10x, so it may **del
 - **Clicking a single product is slow or hangs**
 - **Redeploying fixes it for weeks-to-months**, then it returns
 
-> ⚠️ **This paragraph was the original theory and is now DISPROVEN — see STATUS at the top.** It read: *the "redeploy fixes it" fingerprint means runtime state drift (heap growth, stale connections, stacked timers, rate-limit buckets).* The 35-day flat-heap trace killed that. The real cause is **load-induced head-of-line blocking** on the single 0.5-CPU process, fixed in `a2cba64`. Kept here so nobody re-derives the wrong hypothesis. Still true: it is **not** a static code bug, **not** Render cold-start, **not** Atlas auto-pause.
+> ⚠️ **Read the symptom list above with suspicion.** As of 2026-07-22 we know "clicking a single product" was never special: **every** request that missed the 60s response cache took 15-30s, `getAll` included. Products and categories felt fine only because their keys stay warm and the frontend keeps a 5-min localStorage copy. See STATUS.
+>
+> The original theory here was *runtime state drift (heap growth, stale connections, stacked timers)*. The 35-day flat-heap trace killed the heap half, and the phrasing was vague — but **"stale connections / stacked timers" was the closest anyone got**: the real cause was stacked change-stream cursors holding stale pool connections. Worth remembering that the vague early hunch was directionally right and got discarded wholesale along with the part that was wrong. Still true: it is **not** a static code bug, **not** Render cold-start, **not** Atlas auto-pause.
 
 ## What has already been done (don't re-suggest)
 
@@ -215,10 +266,13 @@ Original ranking of "next culprit." Updated with what we now know.
 
 Was dormant (change stream watched the wrong collection). `197e747` fixed the collection, so this path **now fires** on every product change: `broadcastProductsUpdate` + a synchronous full category rebuild, off the request path. Confirmed to produce occasional ~1s `[STALL]`s. **Next move (server-only): debounce the change-stream handler** so a burst (bulk product update) coalesces into one rebuild — see "Still open" in STATUS. The original coordinated FE option (`PRODUCTS_INVALIDATE` ping + a `web/src/lib/websocket.ts` handler that `dispatch(fetchProducts())`) is still valid if lighter payloads are wanted.
 
-### H3 — Mongo connection-pool starvation
+### H3 — Mongo connection-pool starvation — ✅ CONFIRMED (2026-07-22), now fixed
 
-- `maxPoolSize: 10` in `MONGO_OPTIONS` (`server/core.js`). Change-stream holds one slot continuously.
-- Bumping the pool size doesn't help on M0 — the right move is reducing the standing op rate (i.e. fix H2).
+**This was it.** Ranked third, called "unlikely" as late as 2026-07-15, and correct all along.
+
+- `maxPoolSize: 10` in `MONGO_OPTIONS` (`server/core.js`). One healthy change stream holds one slot continuously — that part was always known and is fine.
+- What was missed: the stream was **leaking**, so it held one slot *per orphan*, up to all 10.
+- Bumping `maxPoolSize` would only have delayed it, and would have hidden the leak for longer. Left at 10 deliberately.
 
 ### H5 — Stacked retries (fixed in `15e91cf`, monitor for recurrence)
 
@@ -231,7 +285,7 @@ If logs show repeated `⚠️ Change Stream closed, will retry...` clusters with
 | `✅ MongoDB connected: <host>/<db>` | `core.js:167` | Mongoose finished connecting. The host/db lets you confirm the right Atlas cluster after long gaps. |
 | `⚠️ MongoDB disconnected` / `🔄 MongoDB reconnected` | `core.js:155-159` | Atlas dropped/recovered. Occasional is fine. Frequent (multiple per hour) is not. |
 | `❌ MongoDB connection error event: <msg>` | `core.js:161-163` | Atlas threw. Read the message. |
-| `[HEALTH] uptime=Xh mem=… rss=… loop=p99:A/max:B mongo=<state> pool=open:N/inUse:N/pending:N poolWait=avg:X/max:Y mongoCmd=max:X/slow:N` | `core.js` `startHealthDiagnostics` | Every 30 min. `loop` = event-loop delay (the CPU-bound signal). `poolWait` = time spent waiting for a Mongo connection; `mongoCmd` = the command round-trip. All three are per-window (reset each log); `pool=` is a live gauge. |
+| `[HEALTH] uptime=Xh mem=… rss=… loop=p99:A/max:B mongo=<state> pool=open:N/inUse:N/pending:N poolWait=avg:X/max:Y mongoCmd=max:X/slow:N changeStreams=N/awaits:N` | `core.js` `startHealthDiagnostics` | Every 30 min. `loop` = event-loop delay (the CPU-bound signal). `poolWait` = time spent waiting for a Mongo connection; `mongoCmd` = the command round-trip. **`changeStreams` must be `1`** — higher means the 2026-07-22 leak is back, and `inUse` will be climbing toward `maxPoolSize`. `awaits` just counts the change stream's normal 30s idle polls, which are excluded from `mongoCmd` so they can't mask real slow commands. Window stats reset each log; `pool=` and `changeStreams=` are live gauges. |
 | `[HEALTH-WARN] <reasons> rss=RMB cacheKeys=N pool=…` | `core.js` `startHealthDiagnostics` | Slow-burn alarm: heap>300MB, mongo not connected, loop p99>500ms, pool wait >1s, pending ≥ maxPoolSize, a failed checkout, or a command >1s. Greppable; means investigate. |
 | `[POOL] checkout waited Xms open:N/inUse:N/pending:N maxPoolSize=N` | `core.js` `attachPoolMonitoring` | **A connection checkout took >1s** — requests are queuing for the pool rather than running queries (H3). Rate-limited to one line / 10s. |
 | `[MONGO-SLOW] <cmd> <ok\|FAILED> Xms pool=…` | `core.js` `attachCommandMonitoring` | **A Mongo command round-trip took >1s** as the driver saw it. With a calm `[POOL]`, the time is on the wire / in Mongo — the half Atlas cannot show on M0. Rate-limited to one line / 10s. |
@@ -240,7 +294,7 @@ If logs show repeated `⚠️ Change Stream closed, will retry...` clusters with
 | `[REQ] <method> <url> <status> <ms>ms mongo=<state> [SLOW]` | `core.js`, request logger | Slow or error response. Useful, but background stalls won't appear here — use `[STALL]`. |
 | `[REQ-ERR] <route>: <Error stack>` | `productController.js` | Server-side error in a product endpoint. Full stack, not just `.message`. |
 | `🟢 Change Stream initialized.` | `core.js:325` | Change-stream cursor opened. Should happen once on startup, occasionally on reconnect. |
-| `⚠️ Change Stream closed, will retry...` | `core.js:319` | Change-stream dropped. With the `retryScheduled` guard, only one retry should be pending at a time. |
+| `⚠️ Change Stream closed, will retry...` | `core.js` `setupChangeStream` | Change-stream dropped. **Count how many land in the SAME SECOND — that is how many streams are alive.** More than one means the leak is back. This is the line that cracked 2026-07-22 (clusters of 10-11). |
 | `🟢 New WebSocket client connected` / `🔴 WebSocket client disconnected` | `core.js:256, 279` | Front-end browser tabs opening/closing. |
 
 ## Things to avoid
