@@ -55,6 +55,11 @@ const MONGO_OPTIONS = {
   serverSelectionTimeoutMS: 10000,
   heartbeatFrequencyMS: 10000,
   maxIdleTimeMS: 30000, // Close connections idle for 30s+ to prevent stale connections
+  // Fail a connection checkout after 10s instead of waiting forever. During the
+  // 2026-08-02 pool starvation, checkouts queued 27s+ (and singleFlight slots
+  // pinned by a stuck producer never recovered without a restart). Bounded
+  // waits turn a wedged pool into fast, visible errors + [POOL] log lines.
+  waitQueueTimeoutMS: 10000,
   // Emit command events so we can time the actual Mongo round-trip (see
   // attachCommandMonitoring). Needed to tell "the driver waited" apart from
   // "Mongo/the network was slow" — Atlas's own charts can't show this on M0.
