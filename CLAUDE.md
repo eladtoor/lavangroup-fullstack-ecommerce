@@ -2,67 +2,57 @@
 
 This file exists because **the same problem keeps coming back every couple of months**. Read it before suggesting changes — most of the obvious moves have already been tried, and there are infra constraints that rule out the easy answers.
 
-## ⏳ OPEN — verify the 2026-07-22 fix (do this on or after 2026-07-29)
+## STATUS — 2026-08-02: THE 7b4a6ce FIX FAILED — CHANGE STREAM REMOVED ENTIRELY (READ THIS FIRST)
 
-**There is an unfinished job here. Do this before anything else.**
+The planned verification ran on **2026-08-02** and the fix **failed**: the pool was starved again, live, 11 days after deploy, with the site's cold misses back at 26-30s. The change stream has now been **removed from the codebase** — the third incident in three months from the same mechanism was ended by deleting the mechanism, not patching it a third time.
 
-The change-stream leak in STATUS below was fixed and deployed on 2026-07-22 (`7b4a6ce`). Post-deploy numbers were good — `poolWait avg 12140ms → 105ms`, cold cache misses `28.6s → 0.42s`. **None of that proves the fix works.** A restart alone clears this symptom for weeks; that is the bug's entire signature, and it is exactly how a premature "fixed" claim got written into this file on 2026-07-15. The deploy proved the *diagnosis*. Only a week of real Atlas reconnects with `changeStreams=` still at `1` proves the *cure*.
+### What the verification found (captured live before any deploy, per Rule Zero)
 
-The user planned to check back on/after **2026-07-29**.
+Curls: `/health` 0.31-0.59s; cold misses 26.7-29.7s (product ids, `site-stats`, `getAll`). Logs:
 
-### 🚫 Do not push ANYTHING to `main` until this is verified
-
-`render.yaml` sets `autoDeploy: true`, so **any** push — including a one-line docs edit to this very file — rebuilds and restarts the service. A restart kills the change streams, resets `uptime=`, and puts the leak counter back to 1. **That silently destroys the week of observation**, and the site will look healthy afterwards regardless of whether the fix works.
-
-The "don't redeploy" rule everyone remembers is about the *lagging* state. This is the other half: don't redeploy during the *watching* state either. If something genuinely must ship this week, note the restart date here and restart the week's count from it.
-
-### The 30-second check — no dashboard needed
-
-Any product id not requested in the last 60s is a guaranteed response-cache miss, so it must reach Mongo:
-
-```bash
-URL=https://hybrid-app-1-2haj.onrender.com
-for id in 6806971c0afb86cc5bbad72a 680697f90afb86cc5bbad731 680698960afb86cc5bbad738; do
-  curl -s -o /dev/null -w "cold  %{time_total}s\n" "$URL/api/products/$id"
-done
-curl -s -o /dev/null -w "health %{time_total}s\n" "$URL/health"
+```
+[HEALTH] uptime=262.0h loop=p99:22ms mongo=connected pool=open:15/inUse:10/pending:3
+         poolWait=avg:9072ms/max:26426ms mongoCmd=max:4ms/slow:0 changeStreams=1/awaits:600
+[HEALTH-WARN] pool_wait_max=26426ms pool_checkout_failed=5 ...   (every 30 min for days)
+[POOL] checkout waited 26452ms open:15/inUse:10/pending:3 maxPoolSize=10
 ```
 
-Cold misses should land within ~2x `/health` (was 0.42-0.81s vs 0.40s). **15-30s means it is back.**
+**`changeStreams=1` while `awaits:600`.** One healthy stream does ~60 awaitData polls per 30-min window; 600 = **ten live cursors**. The gauge shipped specifically to catch this leak was blind to it. The climb across the 7-day log retention:
 
-⚠️ Request each id **once**. A repeat within 60s is a cache hit that never touches Mongo and will look fast no matter how broken things are. If these ids have gone stale, pull fresh ones from `/api/products/getAll`.
-
-### The three greps — Render → `hybrid-app-1` → Logs, range **7 days**
-
-| # | Grep | Pass | Fail |
+| When (uptime) | `awaits` → real cursors | gauge said | pool |
 |---|---|---|---|
-| 1 | `HEALTH` | `changeStreams=1` on every line, `inUse:` low, `poolWait=avg` in the tens of ms | `changeStreams>1`, or `inUse` climbing toward 10 |
-| 2 | `Change Stream` | each `closed` line stands alone | 2+ `closed` lines sharing one timestamp = that many streams alive |
-| 3 | `HEALTH-WARN` | absent | `change_streams=N>1`, `pool_wait_max` |
+| Jul 26 daytime (~97h) | 180 → **3** | 1 | inUse:3, poolWait ~1ms — *looked healthy* |
+| Jul 26 23:43 reconnect | 224→300 → **4→5** | dropped to **0** | inUse:5 |
+| Jul 27 16:01 / 17:22 / 17:26 | — | **9 / 10 / 11** `closed` lines in the same second, each answered by one `initialized. live=1` | |
+| Jul 28 03:39 | — | **12** closes in one burst | |
+| Jul 31 → Aug 2 | 600 → **10** (pool-capped) | 1 | inUse:10 pinned 24/7, 5 failed checkouts per window |
 
-### ⚠️ The null result is not a pass
+### Why the fix failed — the driver heals itself; our code misread the heal as a death
 
-Grep 2 only means something **if reconnects actually happened**. If there are zero `⚠️ Change Stream closed` lines all week, the leak was never exercised and the fix is **untested, not proven**. Say so plainly and extend the window rather than closing this out. For reference, before the fix reconnect bursts hit on Jul 19, 20 and 21 — three in four days — so a completely quiet week would itself be unusual and worth a second look.
+On a resumable network error the MongoDB driver closes its internal cursor — which emits `close` through the mongoose wrapper — **and then auto-resumes. The stream is still alive.** Our `close` handler treated close as death: it decremented the gauge (before its ownership check), nulled `changeStreamInstance` (orphaning the healed stream **with its `change` handler and its pool connection**), and scheduled a retry that created a brand-new stream. Net per Atlas blip: **+1 live orphan, gauge back to exactly 1.** The 7b4a6ce retire block never executed — by the time `setupChangeStream` ran, the reference was already null. Bitter detail: the runbook's old pass criterion (isolated `closed` lines + `live=1`) is exactly what a full-blown leak printed.
 
-Same logic applies to the curl check: a fast site one week in is expected either way. It rules the failure *in*, never *out*.
+### What shipped 2026-08-02
 
-### If it is slow again
+- **The change stream is GONE** (`d27dad6`, `server/core.js`). Live updates now originate from the write path: `productController` create/update/delete call `notifyProductChange()` (`server/utils/changeNotifier.js` — a tiny registry that breaks the core↔controllers require cycle), which clears the category caches and fires the same WebSocket broadcasts as before. Same ~1s push to open tabs, same client handlers, no Mongo cursor held 24/7, nothing left to leak. **Trade-off (user-approved):** writes that bypass the API — Atlas/Compass edits, `scripts/` — no longer push live; they surface via cache TTL (≤60s server, ≤5min client localStorage).
+- **`singleFlight` releases only its own in-flight slot** (`cf693d6`, `responseCache.js`). A `clear()` during a flight let the old producer's cleanup evict its replacement, so producers duplicated instead of coalescing — 1-2 extra pool checkouts each, stacked on the starvation. Same lost-ownership bug class as the stream.
+- **`waitQueueTimeoutMS: 10000`** (`8b591c3`). Pool checkouts now fail visibly after 10s instead of waiting forever (they queued 27s+ during this incident, and a producer stuck on a checkout pinned its singleFlight key until restart).
+- Deployed 2026-08-02; any observation clock restarts from that deploy.
 
-**DO NOT REDEPLOY.** Capture first — go to THE PLAYBOOK below. Then read `changeStreams=` in `[HEALTH]`:
+### The new healthy baseline — three things to memorize
 
-- **`>1`** → the fix is incomplete; another path in `setupChangeStream` (`server/core.js`) still orphans a stream. Note how fast it climbed.
-- **`=1` but `poolWait` high** → something *else* is holding pool connections. New cause — instrument, don't guess.
-- **`=1`, `poolWait` ~0, `mongoCmd` ~0** → not the pool at all. A fourth distinct cause; follow THE PLAYBOOK's Step 3 table.
+1. `[HEALTH]` reads **`changeStreams=0/awaits:0`** — both **zero, always**. Any nonzero `awaits:` (it comes in multiples of ~60 per stream per window) means an awaitData cursor was reintroduced — treat it as this leak returning.
+2. `pool=inUse:` idles at **0-2**. Pinned near 10 with `poolWait` in the seconds = something is holding connections; read `awaits:` first.
+3. The lines `🟢 Change Stream initialized` / `⚠️ Change Stream closed` **can no longer be printed by this codebase.** If one appears in the logs, a watch came back.
 
-### When it passes
+### Verifying the 2026-08-02 deploy
 
-Delete this whole block, and change the STATUS heading below to confirmed — recording the date and **how many reconnects it survived**, since that number is the actual evidence.
+Immediately after deploy: cold-miss curls (Step 2 of THE PLAYBOOK) ≈ `/health`; first `[HEALTH]` shows the baseline above; an admin edit reaches an open tab within ~1s. Over the following days, spot-check that `awaits:` stays 0 and `inUse` stays low. There is no "survive the next reconnect" vigil anymore — Mongo reconnects no longer create or destroy anything — so the baseline gauges are the whole check. A fast site right after deploy still proves nothing by itself; the restart alone guarantees that.
 
-## STATUS — 2026-07-22: ROOT CAUSE FOUND — FIX SHIPPED, VERIFICATION PENDING (READ THIS FIRST)
+## STATUS — 2026-07-22: ROOT CAUSE FOUND (historical — the fix it shipped later FAILED; see 2026-08-02 above)
 
-> The root cause below is proven. The **fix** is not yet — see the OPEN block above.
+> The root-cause *diagnosis* below was correct and stands. The **fix** it shipped did not survive verification — see the 2026-08-02 STATUS above for what actually leaked and what replaced it.
 
-**The change stream leaked.** `setupChangeStream` in `server/core.js` orphaned a still-running change stream on every reconnect. Each orphan sat on its own 30-second `awaitData` `getMore`, holding one Mongo pool connection forever. They accumulated one per reconnect until all 10 pool slots were gone; from then on **every** query waited ~12s for a connection to briefly free up. Fixed 2026-07-22.
+**The change stream leaked.** `setupChangeStream` in `server/core.js` orphaned a still-running change stream on every reconnect. Each orphan sat on its own 30-second `awaitData` `getMore`, holding one Mongo pool connection forever. They accumulated one per reconnect until all 10 pool slots were gone; from then on **every** query waited ~12s for a connection to briefly free up. Fix shipped 2026-07-22; **it failed** (the orphaning path was the driver's auto-resume `close`, which it left untouched) and the stream was removed 2026-08-02.
 
 The instrumentation shipped on 2026-07-15 named it on its first recurrence, which is exactly what it was built for. Do not undo that pattern.
 
@@ -99,16 +89,14 @@ The app really was idle — CPU ~0%, event loop calm, heap flat, no `[STALL]`, a
 
 Still the most important operational rule here. A restart hides the symptom for weeks and takes the evidence with it. **Go to THE PLAYBOOK below (~3 minutes), then deploy.**
 
-First thing to check now: `changeStreams=` in `[HEALTH]`. Healthy is `1`. Anything higher means this leak is back, and `[HEALTH-WARN]` will say `change_streams=N>1`.
-
-(The very first `[HEALTH]` line of a boot — `uptime=0.0h` — reads `changeStreams=0`. That is just ordering: the health log fires before the stream finishes connecting. Confirm with `🟢 Change Stream initialized. live=1` a moment later, and the next 30-min line will read `1`.)
+First thing to check now: `awaits:` in `[HEALTH]`. Since 2026-08-02 the healthy value is **0** (the stream is gone). The 2026-08-02 incident proved the hand-kept `changeStreams=` gauge can read `1` — or `0` — while ten cursors are alive; `awaits:` is driver-side truth (~60 per stream per 30-min window) and is the number to trust.
 
 ### The symptom has had three different causes
 
 | Cause | Signature | Status |
 |---|---|---|
 | **CPU head-of-line blocking** | `[STALL]` present, `[HEALTH] loop=p99` high | **Fixed** `a2cba64` (2026-06-18). |
-| **Change-stream leak → pool starvation** | `poolWait avg` seconds, `inUse` = `maxPoolSize`, `changeStreams>1`, loop calm | **Fixed** 2026-07-22. |
+| **Change-stream leak → pool starvation** | `poolWait avg` seconds, `inUse` = `maxPoolSize`, `awaits` ≥ ~120/window, loop calm | Fix `7b4a6ce` **failed** (it blinded the gauge, not the leak); **stream removed 2026-08-02**. |
 | Anything else | — | Read the logs. Don't assume. |
 
 **Never diagnose this from the symptom.** "Clicking a product hangs" has now meant three unrelated things.
@@ -128,6 +116,8 @@ The 2026-07-15 session concluded pool exhaustion was "unlikely, since Atlas show
 **Dead theories — still dead, do not re-chase:** H1 heap/GC (flat heap, twice confirmed) · H2 broadcast storm (zero `[BROADCAST]`) · M0 saturation (throttling = 0) · Atlas connection cap (14 of 500) · CPU/event-loop (0%, calm) · network/CDN (`/health` steady) · connection warm-up cost (cold misses are 0.3s after a restart) · the response cache being stripped (no broadcasts fired).
 
 ### What shipped 2026-07-22 — the fix
+
+> ⚠️ **This fix failed** (verified 2026-08-02). The path it hardened — explicit retire-then-replace — was never the one that leaked; the driver's auto-resume `close` event was, and it kept creating orphans. Kept for history.
 
 Verified in production immediately after deploy (`7b4a6ce`, instance `brk96`):
 
@@ -176,13 +166,17 @@ The "redeploy fixes it for weeks" framing further down pointed at **runtime stat
 **Actual root cause: load-induced head-of-line blocking on the single 0.5-CPU process.** Under a crawler walking the category tree, every hot read endpoint did a full-collection scan + synchronous `JSON.stringify` (and the regex category query forces a COLLSCAN). On half a CPU these serialize through one event loop, so requests pile up and release in *waves* — even a trivial indexed `findById` took 30–120s. It is congestion **under load**, not slow accumulation; "redeploy fixes it" merely drops the queued work. Confirmed fixed in prod: the same requests went **36,000ms → 36ms**.
 
 ### What shipped (newest first) — all live on `main`
+- `d27dad6` — **Change stream removed; write-path notifier** (2026-08-02). See the STATUS at the top.
+- `cf693d6` — **singleFlight ownership check** (2026-08-02): cleanup releases only its own in-flight slot.
+- `8b591c3` — **`waitQueueTimeoutMS: 10000`** (2026-08-02): pool checkouts fail fast and visibly instead of waiting forever.
 - `5d68fe7` — **Incident recorder.** New `[STALL]`, `[HEALTH-WARN]`, `[BROADCAST]` logs so a recurrence records its own cause (see the log table). The `[HEALTH]` line gained `rss` and `loop=p99/max` (event-loop delay).
 - `5be5508` — **Dependabot remediation.** All prod-relevant criticals/highs cleared (`npm audit fix` in `server/` + `web/`; `next`→14.2.35; `jspdf`→4.2.1).
 - `197e747` — **Change stream fixed.** It had watched collection `"products"` but data lives in `"test"`, so it never fired. Now uses `Product.watch()` and invalidates the response cache on change. NOTE: this **re-activated H2 broadcasts** (see Still open).
 - `a2cba64` — **The fix.** Single-flight + short-TTL response cache (`server/utils/responseCache.js`) on getAll, category, nav, site-stats, seo-text. N concurrent identical requests collapse to one Mongo op + one serialize. This resolved the slowness.
 
 ### Still open / deferred (a new session can pick these up)
-- **Broadcast debounce (server-only).** Still unimplemented, but **downgraded**: a 1h log sweep on 2026-07-15 during live slowness found **zero `[BROADCAST]` lines**, so this path was not firing at all and is *not* what causes the recurrence. Only act if `[BROADCAST]` lines actually cluster (i.e. during a real bulk product update); then coalesce a burst into one rebuild after ~1-2s of quiet.
+- **Broadcast debounce (server-only).** Downgraded again 2026-08-02: broadcasts now fire only from API product writes (`notifyProductChange`) and client `REQUEST_*` messages — the change-stream trigger is gone, so bursts require deliberate bulk admin edits. Only act if `[BROADCAST]` lines actually cluster; then coalesce a burst into one rebuild after ~1-2s of quiet.
+- **Stale-set race in `responseCache` (minor, known, 2026-08-02).** A read that started *before* a write can settle *after* the write's `clear()` and cache its pre-edit result for up to the 60s TTL. Bounded by the TTL, and the write-path broadcast still pushes fresh data to open tabs. The fix would be a per-key epoch check in `set()`; not worth it unless ≤60s post-edit staleness ever matters.
 - **Bounded cache.** `responseCache` evicts lazily (on access) with no size cap. It holds `product:<id>` (334 products) on top of `category:` / `seo:<name>`. Measured `cacheKeys=445` on 2026-07-22, drifting up by ~1/hour — nowhere near a problem, and heap is flat at ~85MB. Leave it. Revisit only if `cacheKeys` reaches the tens of thousands, which would mean crawler-driven key growth, not catalog size.
 - **Self-referential HTTP (not yet fixed).** `NEXT_PUBLIC_API_URL` points at the public domain, so Next server components fetch the Express API by going **out to Render's edge and back into the same process** (`combined.js` serves both). Every SSR data fetch pays a full public round-trip. Pointing it at `http://127.0.0.1:$PORT` — or calling the controllers in-process — would remove that. Left alone 2026-07-15 because `NEXT_PUBLIC_*` is inlined at build time and CPU was not the bottleneck; revisit if CPU ever is.
 - **The local `web` build fails without env vars.** `npm run build` in `web/` exits 1 on a clean tree with 51× Firebase `auth/invalid-api-key` — the prerender of client pages needs the Firebase env. Render has them, so it builds fine there. Don't panic at a red local build; compare against a stashed baseline before blaming your changes.
@@ -203,10 +197,10 @@ Render dashboard → `hybrid-app-1` → **Logs**. Search each term:
 
 | Grep | Meaning if present |
 |---|---|
-| `HEALTH` | **Start here.** Grab the 2-3 lines nearest the slow window — it summarises everything. Check `changeStreams=` (must be `1`) and `inUse:` vs `maxPoolSize` first. |
-| `POOL` | **Jackpot.** A connection checkout waited >1s → it's the pool (H3). This is what 2026-07-22 turned out to be. |
-| `MONGO-SLOW` | A Mongo round-trip took >1s → the wire/driver path. The change stream's own 30s idle polls are excluded, so anything here is real. |
-| `Change Stream` | Count the `closed` lines **sharing one timestamp** = streams alive. >1 is the leak. |
+| `HEALTH` | **Start here.** Grab the 2-3 lines nearest the slow window — it summarises everything. Check `awaits:` (must be `0` since 2026-08-02) and `inUse:` vs `maxPoolSize` first. |
+| `POOL` | **Jackpot.** A connection checkout waited >1s → it's the pool (H3). This is what 2026-07-22 and 2026-08-02 turned out to be. |
+| `MONGO-SLOW` | A Mongo round-trip took >1s → the wire/driver path. getMores ≥27s are excluded (counted as `awaits:`, which must be 0 now), so anything here is real. |
+| `Change Stream` | **Must return nothing** — the stream was removed 2026-08-02. ANY hit means a watch was reintroduced; treat it as the leak. (Historically: `closed` lines sharing one timestamp = streams alive.) |
 | `STALL` | The event loop blocked → the *2026-06-18* CPU bug, not the pool one. Read `oldest=[…]`. |
 
 Also worth a look: `HEALTH-WARN` (any alarm), `BROADCAST` (bulk-write storms), `SLOW` (which endpoint), `REQ-ERR` (stack traces).
@@ -241,7 +235,7 @@ This table was written before the instrumentation had ever fired in anger. **On 
 
 | Reading | Conclusion | Where to look |
 |---|---|---|
-| `poolWait max` ≈ request time | **Pool starvation (H3)** — ✅ this was the 2026-07-22 cause | Check `changeStreams=` and `inUse:` vs `maxPoolSize` on the same line. If `inUse` is pinned at 10, something is holding connections, not using them. |
+| `poolWait max` ≈ request time | **Pool starvation (H3)** — the 2026-07-22 AND 2026-08-02 cause | Read `awaits:` on the same line: ~60 per awaitData cursor per 30-min window (600 = ten). Do **not** trust `changeStreams=` — on 2026-08-02 it read `1` with 10 cursors alive, and `0` with 5. `inUse` pinned at 10 = connections held, not used. |
 | `mongoCmd max` ≈ request time | **The round-trip itself** | Atlas proved Mongo isn't busy, so the time is on the wire / in the driver's socket handling: dead sockets, DNS/SRV, TLS. |
 | **Both ≈ 0 while requests take 10s** | **The time is in OUR code** — everything above was misattributed | Time the code *around* the `await` in `getProduct`, and the middleware chain. Surprising but decisive. |
 | `loop=p99` high / `[STALL]` present | CPU-bound — the *2026-06-18* bug pattern, not the current one | Read `oldest=[…]` for the endpoint. |
@@ -257,7 +251,7 @@ This table was written before the instrumentation had ever fired in anger. **On 
 
 ### Caveat on timing
 
-The 2026-07-22 fix removes the leak, but **a restart alone also clears the symptom for weeks** — so "it's fast now" right after a deploy proves nothing. The real check is `changeStreams=` staying at `1` in `[HEALTH]` across several `⚠️ Change Stream closed` events over the following week. Before the fix it reached 3-5 within hours of the first disconnect and 10 within a day.
+**A restart alone clears this symptom for weeks** — "it's fast now" right after a deploy proves nothing; that reflex is how the bug survived months. Since 2026-08-02 the durable check is simply the baseline gauges in every `[HEALTH]`: `awaits:0`, `changeStreams=0`, `inUse` idling at 0-2. (Historical: before removal, leaked cursors reached 3-5 within hours of a disconnect and ~10 within days.)
 
 ## Project at a glance
 
@@ -285,7 +279,7 @@ The 2026-07-22 fix removes the leak, but **a restart alone also clears the sympt
 - **Clicking a single product is slow or hangs**
 - **Redeploying fixes it for weeks-to-months**, then it returns
 
-> ⚠️ **Read the symptom list above with suspicion.** As of 2026-07-22 we know "clicking a single product" was never special: **every** request that missed the 60s response cache took 15-30s, `getAll` included. Products and categories felt fine only because their keys stay warm and the frontend keeps a 5-min localStorage copy. See STATUS.
+> ⚠️ **Read the symptom list above with suspicion.** As of 2026-07-22 we know "clicking a single product" was never special: **every** request that missed the 60s response cache took 15-30s, `getAll` included. Products and categories felt fine only because their keys stay warm and the frontend keeps a 5-min localStorage copy. Re-confirmed identically on 2026-08-02 (cold misses 26.7-29.7s while `/health` held 0.3-0.6s). See STATUS.
 >
 > The original theory here was *runtime state drift (heap growth, stale connections, stacked timers)*. The 35-day flat-heap trace killed the heap half, and the phrasing was vague — but **"stale connections / stacked timers" was the closest anyone got**: the real cause was stacked change-stream cursors holding stale pool connections. Worth remembering that the vague early hunch was directionally right and got discarded wholesale along with the part that was wrong. Still true: it is **not** a static code bug, **not** Render cold-start, **not** Atlas auto-pause.
 
@@ -332,21 +326,21 @@ Original ranking of "next culprit." Updated with what we now know.
 
 35-day flat-heap trace (~95MB, no restarts) ruled this out. The rate-limit store self-resets each window (it is *not* a cumulative weeks-long leak), and the `full` category cache is a single overwritten slot, not growth. **Do not re-chase.** (Original notes: default in-memory `express-rate-limit` store; `categoryController.js` `full` cache slot; 460MB+0.5CPU GC cost.)
 
-### H2 — WebSocket broadcasts on every product change — ⚠️ NOW ACTIVE
+### H2 — WebSocket broadcasts on every product change — ⚠️ downgraded again (2026-08-02)
 
-Was dormant (change stream watched the wrong collection). `197e747` fixed the collection, so this path **now fires** on every product change: `broadcastProductsUpdate` + a synchronous full category rebuild, off the request path. Confirmed to produce occasional ~1s `[STALL]`s. **Next move (server-only): debounce the change-stream handler** so a burst (bulk product update) coalesces into one rebuild — see "Still open" in STATUS. The original coordinated FE option (`PRODUCTS_INVALIDATE` ping + a `web/src/lib/websocket.ts` handler that `dispatch(fetchProducts())`) is still valid if lighter payloads are wanted.
+Was dormant (change stream watched the wrong collection), then live via the stream (`197e747`), and since 2026-08-02 fires **only** from API product writes (`notifyProductChange` in the controllers) and client `REQUEST_*` messages — the change-stream trigger no longer exists. One admin save = one broadcast; a storm requires deliberate bulk edits. Only act if `[BROADCAST]` lines actually cluster; the debounce idea in "Still open" stands. The original coordinated FE option (`PRODUCTS_INVALIDATE` ping + a `web/src/lib/websocket.ts` handler that `dispatch(fetchProducts())`) is still valid if lighter payloads are wanted.
 
-### H3 — Mongo connection-pool starvation — ✅ CONFIRMED (2026-07-22), now fixed
+### H3 — Mongo connection-pool starvation — ✅ CONFIRMED twice; RESOLVED by removing the stream (2026-08-02)
 
-**This was it.** Ranked third, called "unlikely" as late as 2026-07-15, and correct all along.
+**This was it, both times.** Ranked third, called "unlikely" as late as 2026-07-15, and correct all along.
 
-- `maxPoolSize: 10` in `MONGO_OPTIONS` (`server/core.js`). One healthy change stream holds one slot continuously — that part was always known and is fine.
-- What was missed: the stream was **leaking**, so it held one slot *per orphan*, up to all 10.
-- Bumping `maxPoolSize` would only have delayed it, and would have hidden the leak for longer. Left at 10 deliberately.
+- `maxPoolSize: 10` in `MONGO_OPTIONS` (`server/core.js`). A healthy change stream held one slot continuously — known and fine; the leak held one *per orphan*, up to all 10.
+- The `7b4a6ce` lifecycle fix failed because the driver's auto-resume emits `close` while the stream lives (see the 2026-08-02 STATUS). Resolution: **no stream exists anymore** — nothing in the codebase holds a pool connection at idle.
+- Bumping `maxPoolSize` was deliberately never done: it would only have delayed the ceiling and hidden the leak longer. `waitQueueTimeoutMS: 10000` now bounds checkout waits instead.
 
-### H5 — Stacked retries (fixed in `15e91cf`, monitor for recurrence)
+### H5 — Stacked retries — moot since 2026-08-02
 
-If logs show repeated `⚠️ Change Stream closed, will retry...` clusters without the gap the guard enforces, the guard isn't doing its job and needs investigation.
+The retry machinery was deleted along with the stream. (Historically: `15e91cf`'s `retryScheduled` guard held — each burst produced exactly one new stream — but that new stream orphaned its self-healed predecessor every time, which is what actually accumulated.)
 
 ## What is in the logs and what each line means
 
@@ -355,16 +349,16 @@ If logs show repeated `⚠️ Change Stream closed, will retry...` clusters with
 | `✅ MongoDB connected: <host>/<db>` | `core.js:167` | Mongoose finished connecting. The host/db lets you confirm the right Atlas cluster after long gaps. |
 | `⚠️ MongoDB disconnected` / `🔄 MongoDB reconnected` | `core.js:155-159` | Atlas dropped/recovered. Occasional is fine. Frequent (multiple per hour) is not. |
 | `❌ MongoDB connection error event: <msg>` | `core.js:161-163` | Atlas threw. Read the message. |
-| `[HEALTH] uptime=Xh mem=… rss=… loop=p99:A/max:B mongo=<state> pool=open:N/inUse:N/pending:N poolWait=avg:X/max:Y mongoCmd=max:X/slow:N changeStreams=N/awaits:N` | `core.js` `startHealthDiagnostics` | Every 30 min. `loop` = event-loop delay (the CPU-bound signal). `poolWait` = time spent waiting for a Mongo connection; `mongoCmd` = the command round-trip. **`changeStreams` must be `1`** — higher means the 2026-07-22 leak is back, and `inUse` will be climbing toward `maxPoolSize`. `awaits` just counts the change stream's normal 30s idle polls, which are excluded from `mongoCmd` so they can't mask real slow commands. Window stats reset each log; `pool=` and `changeStreams=` are live gauges. |
+| `[HEALTH] uptime=Xh mem=… rss=… loop=p99:A/max:B mongo=<state> pool=open:N/inUse:N/pending:N poolWait=avg:X/max:Y mongoCmd=max:X/slow:N changeStreams=N/awaits:N` | `core.js` `startHealthDiagnostics` | Every 30 min. `loop` = event-loop delay (the CPU-bound signal). `poolWait` = time spent waiting for a Mongo connection; `mongoCmd` = the command round-trip. **`changeStreams=` and `awaits:` must both be `0`** (stream removed 2026-08-02). `awaits` counts driver-side ≥27s getMores (~60 per awaitData cursor per window) and is the trustworthy one — the hand-kept gauge read `1` with ten cursors alive. Window stats reset each log; `pool=` and `changeStreams=` are live gauges. |
 | `[HEALTH-WARN] <reasons> rss=RMB cacheKeys=N pool=…` | `core.js` `startHealthDiagnostics` | Slow-burn alarm: heap>300MB, mongo not connected, loop p99>500ms, pool wait >1s, pending ≥ maxPoolSize, a failed checkout, or a command >1s. Greppable; means investigate. |
 | `[POOL] checkout waited Xms open:N/inUse:N/pending:N maxPoolSize=N` | `core.js` `attachPoolMonitoring` | **A connection checkout took >1s** — requests are queuing for the pool rather than running queries (H3). Rate-limited to one line / 10s. |
 | `[MONGO-SLOW] <cmd> <ok\|FAILED> Xms pool=…` | `core.js` `attachCommandMonitoring` | **A Mongo command round-trip took >1s** as the driver saw it. With a calm `[POOL]`, the time is on the wire / in Mongo — the half Atlas cannot show on M0. Rate-limited to one line / 10s. |
 | `[STALL] blocked~Xms inflight=N oldest=[...] mem=... mongo=... wsClients=N broadcast=<yes/no> cacheKeys=N` | `core.js` `startIncidentRecorder` | Event-loop blocked >~700ms. **The single most useful line on a recurrence** — names what was running. |
-| `[BROADCAST] <products\|categories> <ms>ms [id=...]` | `core.js` broadcast fns | A change-stream broadcast took >200ms. Clusters of these = bulk product update → debounce (H2). |
+| `[BROADCAST] <products\|categories> <ms>ms [id=...]` | `core.js` broadcast fns | A WebSocket broadcast took >200ms (fires on API product writes and client `REQUEST_*` messages). Clusters of these = bulk product update → debounce (H2). |
 | `[REQ] <method> <url> <status> <ms>ms mongo=<state> [SLOW]` | `core.js`, request logger | Slow or error response. Useful, but background stalls won't appear here — use `[STALL]`. |
 | `[REQ-ERR] <route>: <Error stack>` | `productController.js` | Server-side error in a product endpoint. Full stack, not just `.message`. |
-| `🟢 Change Stream initialized.` | `core.js:325` | Change-stream cursor opened. Should happen once on startup, occasionally on reconnect. |
-| `⚠️ Change Stream closed, will retry...` | `core.js` `setupChangeStream` | Change-stream dropped. **Count how many land in the SAME SECOND — that is how many streams are alive.** More than one means the leak is back. This is the line that cracked 2026-07-22 (clusters of 10-11). |
+| `🟢 Change Stream initialized.` | *(removed 2026-08-02)* | **This line can no longer be printed.** If it appears, someone reintroduced a watch — re-read the STATUS at the top before doing anything else. |
+| `⚠️ Change Stream closed, will retry...` | *(removed 2026-08-02)* | Same — historical only. (This was the line that cracked 2026-07-22: `closed` lines sharing one second = streams alive; clusters of 10-12 during the 2026-08-02 verification.) |
 | `🟢 New WebSocket client connected` / `🔴 WebSocket client disconnected` | `core.js:256, 279` | Front-end browser tabs opening/closing. |
 
 ## Things to avoid
@@ -373,6 +367,7 @@ If logs show repeated `⚠️ Change Stream closed, will retry...` clusters with
 - **Do not** add a logging library (winston/pino). Render's log stream captures `console.*` natively; adding a library means new failure modes for no win.
 - **Do not** propose Redis as the first move — it's another paid service. Bounded in-memory or Mongo-backed alternatives exist.
 - **Do not** rewrite the WebSocket layer wholesale. The current design is fine; just send lighter payloads.
+- **Do not** reintroduce `Product.watch()` or any MongoDB change stream. Three pool-starvation incidents in three months came from that one mechanism on M0's flaky networking, and two lifecycle fixes died on the driver's auto-resume `close` semantics. The write-path notifier (`changeNotifier.js`) covers the product-update need; if a future feature truly requires a stream, it must be designed against those semantics and watched via `awaits:`.
 - **Do not** treat a single `[REQ] ... SLOW` line as the issue returning. Look for a pattern over time and corroborating `[HEALTH]` or Atlas metrics.
 - **Do not** delete the `tmpclaude-*-cwd` directories at the repo root without checking — they're stale CWD markers from previous sessions, but `.gitignore` already covers them; just leave them be.
 
