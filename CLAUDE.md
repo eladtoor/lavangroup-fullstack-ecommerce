@@ -48,6 +48,21 @@ On a resumable network error the MongoDB driver closes its internal cursor — w
 
 Immediately after deploy: cold-miss curls (Step 2 of THE PLAYBOOK) ≈ `/health`; first `[HEALTH]` shows the baseline above; an admin edit reaches an open tab within ~1s. Over the following days, spot-check that `awaits:` stays 0 and `inUse` stays low. There is no "survive the next reconnect" vigil anymore — Mongo reconnects no longer create or destroy anything — so the baseline gauges are the whole check. A fast site right after deploy still proves nothing by itself; the restart alone guarantees that.
 
+### Chaos-verified 2026-08-02 — the lag reproduced on demand, old vs new, same trigger
+
+"Fast after a redeploy" proves nothing (every broken version was fast for weeks after a restart), so the fix was verified the honest way: a **local A/B chaos lab** — disposable single-member replica set (mongodb-memory-server), the server booted from git worktrees of both versions with a runtime-fake Firebase service account, forced reconnects = mongod member restarts (~3s outage each, the analog of an Atlas network blip), measured by a `$currentOp` census of change-stream cursors on the watched ns plus timed cold HTTP probes. Identical 10-blip sequence against both versions:
+
+| forced reconnects | OLD `e2ae747` (the code that failed prod) | NEW `cdb37bf` |
+|---|---|---|
+| 1–8 | cursors climb 2→9 (+1 per blip), probes 22–36ms — *mid-climb looks healthy* | cursors 0, probes 18–40ms |
+| 9 | **10th cursor → pool pinned → cold probe 23,016ms** | cursors 0, 20ms |
+| 10 | 10 cursors, 23,026ms — stable starvation | cursors 0, 18ms |
+
+- `⚠️ Change Stream closed` lines per blip equalled the living-stream count in **10/10 rounds** — the exact prod fingerprint ("count closed lines sharing one second").
+- Verdict: same trigger, 23s requests vs 40ms. The lag was the stream lifecycle and only the stream lifecycle; with the stream gone there is nothing to accumulate.
+- Bonus finding: **`replSetStepDown` does NOT disturb change streams** (6 stepdown rounds: zero close events, zero leak) — only real connection drops do. Matches onset tracking Atlas *network* blips (reconnect-counted, never time-based).
+- Lab fully torn down afterwards: worktrees removed, `git status` byte-clean, no stray mongod. Production untouched throughout.
+
 ## STATUS — 2026-07-22: ROOT CAUSE FOUND (historical — the fix it shipped later FAILED; see 2026-08-02 above)
 
 > The root-cause *diagnosis* below was correct and stands. The **fix** it shipped did not survive verification — see the 2026-08-02 STATUS above for what actually leaked and what replaced it.
