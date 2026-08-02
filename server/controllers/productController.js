@@ -1,5 +1,6 @@
 const Product = require("../models/productModel");
 const cache = require("../utils/responseCache");
+const { notifyProductChange } = require("../utils/changeNotifier");
 
 // TTLs for cached read endpoints. Short enough that edits surface quickly
 // (the frontend already keeps its own 5-min localStorage cache), long enough
@@ -8,6 +9,8 @@ const PRODUCTS_TTL = 60 * 1000; // 60s
 
 // Invalidate every product-derived cache key. Called on any product write so
 // edits are reflected within the TTL ceiling at the latest, usually immediately.
+// Every write must ALSO call notifyProductChange() afterwards — that is what
+// pushes the edit to open tabs now (the DB change stream is gone, see core.js).
 // Note "product:" does not prefix-match "products:all" (the 8th char differs),
 // so the single-product keys and the all-products key are cleared separately.
 const invalidateProductCaches = () => {
@@ -27,6 +30,7 @@ const createProduct = async (req, res) => {
     const newProduct = new Product(req.body);
     const savedProduct = await newProduct.save();
     invalidateProductCaches();
+    notifyProductChange(savedProduct._id);
     res.status(201).send(savedProduct);
   } catch (error) {
     res.status(400).send(error.message);
@@ -87,6 +91,7 @@ const updateProduct = async (req, res) => {
     }
 
     invalidateProductCaches();
+    notifyProductChange(updatedProduct._id);
     res.status(200).send(updatedProduct);
   } catch (error) {
     res.status(400).send(error.message);
@@ -103,6 +108,7 @@ const deleteProduct = async (req, res) => {
     }
 
     invalidateProductCaches();
+    notifyProductChange(); // no id -> full-list push to open tabs
     res.status(200).send("Product deleted successfully");
   } catch (error) {
     res.status(500).send(error.message);

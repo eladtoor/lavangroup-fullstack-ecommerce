@@ -40,11 +40,11 @@ app.get("/", (req, res) => {
   res.send("🟢 API Server is running (development mode)");
 });
 
-// Setup WebSocket handlers
-const { heartbeatInterval, setupChangeStream } = setupWebSocket(wss);
+// Setup WebSocket handlers (also registers the write-path change notifier)
+const { heartbeatInterval } = setupWebSocket(wss);
 
-// Connect to MongoDB and start Change Stream
-connectDB(setupChangeStream);
+// Connect to MongoDB
+connectDB();
 
 // Setup graceful shutdown
 setupGracefulShutdown(server, wss, heartbeatInterval);

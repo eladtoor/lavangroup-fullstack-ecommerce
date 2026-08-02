@@ -10,15 +10,15 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const WebSocket = require("ws");
 const { monitorEventLoopDelay } = require("perf_hooks");
-const Product = require("./models/productModel");
 const cache = require("./utils/responseCache");
 const { getCategoriesNav, invalidateCategoryCache } = require("./controllers/categoryController");
+const { registerProductChangeNotifier } = require("./utils/changeNotifier");
 
 // ============ INCIDENT RECORDER STATE ============
 // Shared state so a future slowdown logs its own cause (see startIncidentRecorder).
 const inFlightRequests = new Map(); // reqId -> { method, url, start }
 let reqSeq = 0;
-let broadcastDepth = 0;             // >0 while a change-stream broadcast is running
+let broadcastDepth = 0;             // >0 while a WebSocket broadcast is running
 let wssRef = null;                  // live WebSocket server ref, for client count
 
 // Rate Limiting
@@ -173,7 +173,7 @@ function setupRoutes(app) {
 // THEY WORKED. On the first recurrence (2026-07-22) they read:
 //   pool=open:14/inUse:10/pending:4  poolWait=avg:12140ms/max:29480ms
 // i.e. H3 (pool starvation) all along — every query queuing ~12s for one of 10
-// connections held by leaked change streams (see setupChangeStream).
+// connections held by leaked change streams (removed 2026-08-02; see CLAUDE.md).
 //
 // The note that used to live here called H3 "unlikely, since Atlas showed
 // connections flat at 4." That reasoning was sound but the sample was taken
@@ -182,7 +182,7 @@ function setupRoutes(app) {
 // which is exactly why these are logged every 30 min instead of spot-checked.
 //
 // Reading them:
-//   wait max ~= request time -> pool starvation; check changeStreams= too.
+//   wait max ~= request time -> pool starvation; check awaits: too (must be 0).
 //   pending >= maxPoolSize   -> a genuine backlog (1-2 in flight is normal).
 //   wait ~0 while slow       -> not the pool. Read mongoCmd instead (below).
 // The driver emits CMAP events on the MongoClient by default; no option needed.
@@ -279,17 +279,15 @@ const cmdStats = { maxMs: 0, slowCount: 0, lastLogAt: 0, csAwait: 0 };
 const CMD_SLOW_MS = 1000;
 const CMD_LOG_EVERY_MS = 10000; // rate limit; a stall would otherwise log per op
 
-// How long the change stream parks a getMore waiting for data. It is the only
-// awaitData cursor in this codebase, so a getMore lasting about this long is
-// normal idling, not a slow command — see isChangeStreamAwait below.
+// Nothing in this codebase opens an awaitData cursor anymore — the change
+// stream was removed 2026-08-02 after leaking pool connections three times
+// (see CLAUDE.md STATUS) — so `awaits:` in [HEALTH] must read 0. The detector
+// below stays as a tripwire: a ~30s getMore is a long-poll idling by design,
+// not a slow command, and counting one in [MONGO-SLOW] would keep [HEALTH-WARN]
+// permanently on. Counted separately (csAwait) so a reintroduced stream shows
+// up in `awaits:` instead of hiding the real slow commands.
 const CHANGE_STREAM_AWAIT_MS = 30000;
 
-// A change stream's getMore blocks for up to maxAwaitTimeMS by design, so
-// counting it as a "slow command" made [MONGO-SLOW] print a 30s line every 10s
-// forever and pinned mongo_cmd_max at ~30000ms, keeping [HEALTH-WARN] on
-// permanently. A warning that is always on hides the ones that matter. These are
-// counted separately (csAwait) rather than dropped, so nothing is hidden — and
-// changeStreams= is now the real signal for a leak.
 function isChangeStreamAwait(ev, ms) {
   return ev.commandName === 'getMore' && ms >= CHANGE_STREAM_AWAIT_MS * 0.9;
 }
@@ -453,21 +451,15 @@ function startIncidentRecorder() {
 }
 
 // ============ DATABASE CONNECTION ============
-let changeStreamInstance = null;
-let onChangeStreamReady = null;
-
-// Live count of change streams we believe are open. This exists because of the
-// 2026-07-22 incident: setupChangeStream() used to orphan a still-running stream
-// on every retry, and each orphan held one pool connection forever on its 30s
-// awaitData getMore. Ten of them saturated maxPoolSize and every query then
-// queued ~12s for a connection. Nothing in the logs counted streams, so the
-// cause was invisible for months — the symptom looked like "Mongo is slow".
-// Steady state is 1. Anything above that is the leak coming back.
+// Constant 0 since 2026-08-02: the change stream was removed after leaking one
+// pool connection per Atlas reconnect, three incidents in three months (see
+// CLAUDE.md STATUS). The variable is kept so the [HEALTH] line and the
+// runbook's greps keep their shape; healthy is exactly 0 now. The
+// driver-derived `awaits:` count on the same line is the tripwire that catches
+// any reintroduced awaitData cursor.
 let liveChangeStreams = 0;
 
-async function connectDB(onReady) {
-  onChangeStreamReady = onReady;
-
+async function connectDB() {
   if (!process.env.MONGO_URI) {
     console.error("❌ MONGO_URI is not defined in environment variables.");
     process.exit(1);
@@ -508,10 +500,9 @@ async function connectDB(onReady) {
     await connecting;
     console.log(`✅ MongoDB connected: ${mongoose.connection.host}/${mongoose.connection.name}`);
     startHealthDiagnostics();
-    if (onChangeStreamReady) onChangeStreamReady();
   } catch (err) {
     console.error("❌ MongoDB connection error:", err);
-    setTimeout(() => connectDB(onReady), 5000);
+    setTimeout(() => connectDB(), 5000);
   }
 }
 
@@ -638,112 +629,32 @@ function setupWebSocket(wss) {
     });
   });
 
-  // Change Stream setup
-  let retryScheduled = false;
-  const scheduleRetry = () => {
-    if (retryScheduled) return;
-    retryScheduled = true;
-    setTimeout(() => {
-      retryScheduled = false;
-      setupChangeStream();
-    }, 5000);
-  };
+  // Live updates originate from the API write path: productController calls
+  // notifyProductChange() after every successful create/update/delete, and the
+  // handler registered here is what runs. There is deliberately NO MongoDB
+  // change stream anymore — it leaked one pool connection per Atlas reconnect,
+  // three incidents in three months (2026-06-18, 07-22, 08-02; see CLAUDE.md
+  // STATUS). Writes that bypass the API (Atlas/Compass, scripts/) surface via
+  // cache TTL instead: ≤60s server-side, ≤5min client localStorage.
+  registerProductChangeNotifier(async (productId = null) => {
+    // The controllers also clear the product caches synchronously before
+    // responding (so their own immediate refetch can't hit a stale entry); the
+    // clears here make the notifier complete on its own for any future caller.
+    cache.clear("products:all");
+    cache.clearPrefix("category:");
+    cache.clearPrefix("product:");
+    invalidateCategoryCache();
 
-  const setupChangeStream = () => {
-    try {
-      // Retire the previous stream BEFORE creating the replacement, and detach
-      // its listeners first.
-      //
-      // The bug this replaces (root cause of the 2026-07-22 slowdown): close()
-      // is async, so the old stream's "close" event fired *after* the line below
-      // had already assigned the new stream to changeStreamInstance. The old
-      // stream's handler then nulled that variable — dropping our only reference
-      // to a healthy, still-running stream — and scheduled yet another retry.
-      // The orphan kept polling every 30s and holding a pool connection forever,
-      // unreachable by any later close(). One leaked per retry until all 10 pool
-      // slots were gone. removeAllListeners() first means teardown can no longer
-      // re-enter this function.
-      if (changeStreamInstance) {
-        const old = changeStreamInstance;
-        changeStreamInstance = null;
-        old.removeAllListeners();
-        // Not awaited — we want the replacement up now. The decrement must run on
-        // BOTH paths: a rejected close() still means we have let this stream go,
-        // and leaving the count inflated would raise a permanent false leak alarm.
-        Promise.resolve(old.close())
-          .catch((err) => console.error("❌ Error closing previous Change Stream:", err.message))
-          .finally(() => { liveChangeStreams = Math.max(0, liveChangeStreams - 1); });
-      }
-
-      // Watch the model's actual collection. Mongoose maps Product -> the "test"
-      // collection (legacy name, see productModel.js); watching the literal
-      // "products" collection meant the stream never fired on real edits.
-      const stream = Product.watch([], {
-        fullDocument: 'updateLookup',
-        maxAwaitTimeMS: CHANGE_STREAM_AWAIT_MS,
-      });
-      changeStreamInstance = stream;
-      liveChangeStreams++;
-
-      // Every handler below is bound to `stream` and checks its own identity.
-      // Previously they referenced the module-level variable, so a stale stream's
-      // events acted on whichever stream happened to be current — the exact
-      // confusion that produced the leak.
-      const isCurrent = () => stream === changeStreamInstance;
-
-      stream.on("change", async (change) => {
-        // A product changed — possibly via a direct DB write, not just our API.
-        // Drop the server-side caches so the broadcast and next reads are fresh.
-        // (API write paths already invalidate; this covers out-of-band changes.)
-        cache.clear("products:all");
-        cache.clearPrefix("category:");
-        cache.clearPrefix("product:");
-        invalidateCategoryCache();
-
-        const productId = change.documentKey?._id;
-
-        if (change.operationType === 'delete') {
-          broadcastProductsUpdate();
-        } else if (productId) {
-          broadcastProductsUpdate(productId);
-        } else {
-          broadcastProductsUpdate();
-        }
-
-        broadcastCategoriesUpdate();
-      });
-
-      stream.on("error", (error) => {
-        console.error("❌ Change Stream error:", error);
-        if (!isCurrent()) return; // a retired stream's error is not ours to act on
-        changeStreamInstance = null;
-        stream.removeAllListeners();
-        Promise.resolve(stream.close())
-          .catch(() => {}) // already logged above; the retry is what matters
-          .finally(() => { liveChangeStreams = Math.max(0, liveChangeStreams - 1); });
-        scheduleRetry();
-      });
-
-      stream.on("close", () => {
-        liveChangeStreams = Math.max(0, liveChangeStreams - 1);
-        console.warn("⚠️ Change Stream closed, will retry...");
-        if (!isCurrent()) return; // already replaced; do not touch the live stream
-        changeStreamInstance = null;
-        scheduleRetry();
-      });
-
-      // The count is on this line so a leak is visible in the same grep that
-      // shows the reconnect that caused it. Healthy value is live=1.
-      console.log(`🟢 Change Stream initialized. live=${liveChangeStreams}`);
-    } catch (error) {
-      console.error("❌ Error setting up Change Stream:", error);
-      scheduleRetry();
+    if (productId) {
+      await broadcastProductsUpdate(productId);
+    } else {
+      await broadcastProductsUpdate(); // delete / unknown id -> full-list push
     }
-  };
+    await broadcastCategoriesUpdate();
+  });
 
   return {
     heartbeatInterval,
-    setupChangeStream,
     broadcastProductsUpdate,
     broadcastCategoriesUpdate,
   };
@@ -755,14 +666,6 @@ function setupGracefulShutdown(server, wss, heartbeatInterval) {
     console.log(`\n⚠️ ${signal} received, closing gracefully...`);
     
     if (heartbeatInterval) clearInterval(heartbeatInterval);
-    if (changeStreamInstance) {
-      // Detach first: otherwise the close event schedules a reconnect while we
-      // are shutting down, which would open a fresh stream mid-teardown.
-      const stream = changeStreamInstance;
-      changeStreamInstance = null;
-      stream.removeAllListeners();
-      await Promise.resolve(stream.close()).catch(() => {});
-    }
 
     wss.close(() => console.log('✅ WebSocket server closed'));
     server.close(() => console.log('✅ HTTP server closed'));

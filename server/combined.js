@@ -42,11 +42,11 @@ async function start() {
   // Setup API routes
   setupRoutes(app);
 
-  // Setup WebSocket handlers
-  const { heartbeatInterval, setupChangeStream } = setupWebSocket(wss);
+  // Setup WebSocket handlers (also registers the write-path change notifier)
+  const { heartbeatInterval } = setupWebSocket(wss);
 
-  // Connect to MongoDB and start Change Stream (await to prevent serving requests before DB is ready)
-  await connectDB(setupChangeStream);
+  // Connect to MongoDB (await to prevent serving requests before DB is ready)
+  await connectDB();
 
   // Setup graceful shutdown
   setupGracefulShutdown(server, wss, heartbeatInterval);
