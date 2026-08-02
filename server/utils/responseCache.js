@@ -76,7 +76,11 @@ async function singleFlight(key, ttlMs, producer) {
   try {
     return await promise;
   } finally {
-    inflight.delete(key);
+    // Release only OUR slot. A clear()/clearPrefix() during the flight frees
+    // the key and a NEWER producer may have claimed it; deleting blindly here
+    // would evict that newer flight and let a third producer start. Same
+    // lost-ownership class of bug that leaked the change streams (CLAUDE.md).
+    if (inflight.get(key) === promise) inflight.delete(key);
   }
 }
 
