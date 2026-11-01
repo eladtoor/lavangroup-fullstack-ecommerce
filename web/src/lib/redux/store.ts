@@ -43,6 +43,11 @@ export const store = configureStore({
   // Note: redux-thunk is included by default in configureStore
 });
 
+// Snapshot of the state before redux-persist rehydrates from localStorage. The server renders
+// with exactly this state, so it is passed to <Provider serverState> to keep the first client
+// render identical to the server HTML (no hydration mismatch). Must be taken before persistStore().
+export const INITIAL_STATE = store.getState();
+
 export const persistor = persistStore(store);
 
 export type RootState = ReturnType<typeof store.getState>;

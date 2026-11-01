@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next';
+import { ARTICLES } from '@/content/articles';
 import { unstable_cache } from 'next/cache';
 import { fetchAllProducts, fetchCategories } from '@/lib/api';
 import { buildCategoryUrl, CANONICAL_BASE_URL } from '@/lib/category-slugs';
@@ -65,6 +66,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.6,
     },
+    {
+      url: `${baseUrl}/articles`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.7,
+    },
+    ...ARTICLES.map((a) => ({
+      url: `${baseUrl}/articles/${a.slug}`,
+      lastModified: new Date(a.datePublished),
+      changeFrequency: 'monthly' as const,
+      priority: 0.6,
+    })),
     {
       url: `${baseUrl}/delivery-days`,
       lastModified: new Date(),
