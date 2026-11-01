@@ -197,6 +197,10 @@ export default function LavanGroupPage() {
               <div>
                 <p className="text-sm text-[var(--lv-muted)]">פרויקטים פרטיים</p>
                 <h4 className="lv-serif text-xl sm:text-2xl text-[var(--lv-ink)]">בתים פרטיים – הרצליה</h4>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="lv-chip">שתי וילות</span>
+                  <span className="lv-chip">בתחילת עבודות בנייה</span>
+                </div>
               </div>
               <p className="text-xs text-[var(--lv-muted)]">תכנון: אדריכל גדי פוליטי · הדמיות: OneViz Studio</p>
             </div>
