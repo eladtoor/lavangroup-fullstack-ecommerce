@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAppSelector } from '@/lib/redux/hooks';
 import ProductCard from '@/components/ProductCard';
 import Breadcrumbs from '@/components/Breadcrumbs';
 
-export default function SearchResults() {
+function SearchResultsContent() {
   const products = useAppSelector((state) => state.products.products);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const searchParams = useSearchParams();
@@ -97,5 +97,14 @@ export default function SearchResults() {
             )}
           </section>
         </main>
+  );
+}
+
+// useSearchParams() must sit under a Suspense boundary for static rendering (Next.js requirement).
+export default function SearchResults() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <SearchResultsContent />
+    </Suspense>
   );
 }

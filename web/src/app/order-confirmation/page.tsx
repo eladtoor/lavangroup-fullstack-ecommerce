@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Breadcrumbs from '@/components/Breadcrumbs';
 interface OrderData {
@@ -18,7 +18,7 @@ interface OrderData {
   };
 }
 
-export default function OrderConfirmation() {
+function OrderConfirmationContent() {
   const router = useRouter();
   const [orderData, setOrderData] = useState<OrderData | null>(null);
 
@@ -118,5 +118,14 @@ export default function OrderConfirmation() {
         </button>
       </div>
       </>
+  );
+}
+
+// useSearchParams() must sit under a Suspense boundary for static rendering (Next.js requirement).
+export default function OrderConfirmation() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <OrderConfirmationContent />
+    </Suspense>
   );
 }

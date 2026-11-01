@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   getAuth,
@@ -15,7 +15,7 @@ import { useAppSelector, useAppDispatch } from '@/lib/redux/hooks';
 import { setUser } from '@/lib/redux/slices/userSlice';
 import { db } from '@/lib/firebase';
 
-export default function LoginPage() {
+function LoginPageContent() {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -154,5 +154,14 @@ export default function LoginPage() {
           </button>
         </div>
       </div>
+  );
+}
+
+// useSearchParams() must sit under a Suspense boundary for static rendering (Next.js requirement).
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <LoginPageContent />
+    </Suspense>
   );
 }
