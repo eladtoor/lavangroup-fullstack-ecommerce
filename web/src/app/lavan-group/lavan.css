@@ -1,0 +1,123 @@
+/*
+ * LAVAN Group pages — visual identity (scoped to .lv, so the store is unaffected).
+ * Palette follows the LAVAN project materials: graphite, cream, sand and brushed gold.
+ * Fonts are self-hosted via @fontsource (imported in layout.tsx): no requests to Google.
+ */
+
+.lv {
+  --lv-ink: #1f1e1b;
+  --lv-ink-soft: #2e2c28;
+  --lv-text: #3a3833;
+  --lv-muted: #6f6a61;
+  --lv-cream: #f7f4ee;
+  --lv-sand: #ece5d8;
+  --lv-line: #ddd5c6;
+  --lv-gold: #b08d57;
+  --lv-gold-dark: #8f7144;
+
+  font-family: 'Heebo Variable', 'Heebo', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  color: var(--lv-text);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'kern';
+}
+
+.lv-serif {
+  font-family: 'Frank Ruhl Libre Variable', 'Frank Ruhl Libre', 'David', Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.lv-latin {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.lv-kicker {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--lv-gold);
+}
+
+.lv-rule {
+  display: block;
+  width: 56px;
+  height: 1px;
+  background: var(--lv-gold);
+}
+
+.lv-btn,
+.lv-btn-ghost,
+.lv-btn-dark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  border-radius: 2px;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.lv-btn {
+  background: var(--lv-gold);
+  color: #fff;
+  border: 1px solid var(--lv-gold);
+}
+.lv-btn:hover {
+  background: var(--lv-gold-dark);
+  border-color: var(--lv-gold-dark);
+}
+
+.lv-btn-ghost {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+.lv-btn-ghost:hover {
+  background: #fff;
+  color: var(--lv-ink);
+}
+
+.lv-btn-dark {
+  background: var(--lv-ink);
+  color: #fff;
+  border: 1px solid var(--lv-ink);
+}
+.lv-btn-dark:hover {
+  background: var(--lv-ink-soft);
+}
+
+.lv-card {
+  background: #fff;
+  border: 1px solid var(--lv-line);
+}
+
+.lv-chip {
+  display: inline-block;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--lv-line);
+  background: #fff;
+  font-size: 0.85rem;
+  color: var(--lv-text);
+}
+
+.lv-link {
+  color: var(--lv-gold-dark);
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+}
+.lv-link:hover {
+  color: var(--lv-ink);
+}
+
+.lv-img {
+  transition: transform 0.6s ease;
+}
+.lv-zoom:hover .lv-img {
+  transform: scale(1.03);
+}

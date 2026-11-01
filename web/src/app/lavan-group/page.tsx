@@ -2,27 +2,51 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import Breadcrumbs from '@/components/Breadcrumbs';
-import { FaPaintRoller, FaTools, FaCity, FaPhoneAlt, FaWhatsapp, FaCheck } from 'react-icons/fa';
+import { FaPhoneAlt } from 'react-icons/fa';
+import { SectionHead, Bullets, Photo, ContactBand, PHONE_DISPLAY, PHONE_INTL, type Img } from './_ui';
 
 /*
  * LAVAN Group — the group page (/lavan-group).
- * Structure: Israel (store, soil-investigation drilling, real-estate development),
- * Poland (LAVAN PL Sp. z o.o.), Germany (LAVAN De GmbH).
- * Content lives in the constants below so it can be edited without touching the layout.
- * Images are pre-compressed WebP in /public/images/lavan-group and served unoptimized
- * (no runtime image processing on the 0.5-CPU Render instance).
+ * Israel: the "לבן" paint & building-materials store, LAVAN Group Development & Drilling
+ * (soil investigation), and private & commercial real-estate development.
+ * Poland: LAVAN PL Sp. z o.o. (full page at /lavan-group/poland). Germany: LAVAN De GmbH.
+ * Typography and palette come from ./layout.tsx + ./lavan.css. Images are pre-compressed WebP.
  */
 
 const PAGE_PATH = '/lavan-group';
 const PAGE_TITLE = 'LAVAN Group – צבעים, בדיקות קרקע ונדל"ן בישראל, פולין וגרמניה';
 const PAGE_DESCRIPTION =
-  'LAVAN Group פועלת בישראל, בפולין ובגרמניה: בית המסחר "לבן" לצבעים וחומרי בניין, לבן גרופ: פיתוח וקידוח – בדיקות קרקע בכל הארץ, ויזמות נדל"ן למגורים ולמסחר.';
+  'LAVAN Group פועלת בישראל, בפולין ובגרמניה: בית המסחר "לבן" לצבעים וחומרי בניין, לבן גרופ: פיתוח וקידוח – בדיקות קרקע בכל הארץ, ויזמות נדל"ן פרטי ומסחרי.';
 
-const PHONE_DISPLAY = '050-5342813';
-const PHONE_INTL = '+972505342813';
-const IMG = '/images/lavan-group';
+const IL = '/images/lavan-group/israel';
+const PL = '/images/lavan-group/poland';
 
-const DRILLING_BADGES = ['מורשה משרד הביטחון', 'מכרזים ממשלתיים', 'עבודה בכל חלקי הארץ'];
+export const metadata: Metadata = {
+  title: PAGE_TITLE,
+  description: PAGE_DESCRIPTION,
+  alternates: { canonical: PAGE_PATH },
+  robots: { index: true, follow: true },
+  openGraph: {
+    title: PAGE_TITLE,
+    description: PAGE_DESCRIPTION,
+    url: PAGE_PATH,
+    type: 'website',
+    locale: 'he_IL',
+    images: [{ url: `${IL}/herzliya-private-house-night.webp`, width: 1600, height: 855, alt: 'LAVAN Group' }],
+  },
+};
+
+const HERZLIYA: Img[] = [
+  { src: `${IL}/herzliya-private-house-day.webp`, alt: 'הדמיית בית פרטי של LAVAN בהרצליה – חזית ביום', w: 1600, h: 855 },
+  { src: `${IL}/herzliya-private-house-night.webp`, alt: 'הדמיית בית פרטי של LAVAN בהרצליה – חזית בערב', w: 1600, h: 855 },
+];
+
+const DRILLING: Img[] = [
+  { src: `${IL}/drilling-rig-side.webp`, alt: 'מכונת קידוח לבדיקות קרקע של לבן גרופ: פיתוח וקידוח', w: 1200, h: 800 },
+  { src: `${IL}/drilling-rig-mast.webp`, alt: 'מכונת הקידוח של לבן גרופ: פיתוח וקידוח עם תורן מורם', w: 900, h: 1351 },
+];
+
+const DRILLING_POINTS = ['בדיקות קרקע בכל חלקי הארץ', 'מורשה משרד הביטחון', 'עבודה במכרזים ממשלתיים'];
 
 const POLAND_SERVICES = [
   'איתור, השבחה ובנייה של פרויקטים למגורים ולמסחר',
@@ -32,50 +56,16 @@ const POLAND_SERVICES = [
 ];
 
 const POLAND_PROJECTS = [
-  { id: 'kato', name: 'LAVAN KATO', text: 'מלון דירות מניב – קטוביץ' },
-  { id: 'widok12', name: 'LAVAN WIDOK 12', text: 'פרויקט מגורים בוטיק – קטוביץ' },
-  { id: 'gliwice', name: 'LAVAN GLIWICE', text: '24 דירות וחניון תת-קרקעי – גליביצה' },
-  { id: 'zabrze', name: 'Roosevelta 22', text: 'מגורים ומסחר – זברז׳ה' },
+  { id: 'kato', name: 'LAVAN KATO', text: 'מלון דירות מניב · קטוביץ' },
+  { id: 'widok12', name: 'LAVAN WIDOK 12', text: 'מגורים בוטיק · קטוביץ' },
+  { id: 'gliwice', name: 'LAVAN GLIWICE', text: '24 דירות · הושלם ואוכלס' },
+  { id: 'zabrze', name: 'Roosevelta 22 – LAVAN', text: '24 דירות · הושלם ואוכלס' },
 ];
 
-const GERMANY_SERVICES = [
-  'רכישה והשבחה של בנייני מגורים',
-  'שיווק ומכירה של דירות להשקעה מניבות',
-];
-
-function SectionTitle({ id, kicker, title }: { id: string; kicker: string; title: string }) {
-  return (
-    <div className="mb-6">
-      <p className="text-sm font-semibold tracking-widest text-primary" dir="ltr" style={{ textAlign: 'right' }}>
-        {kicker}
-      </p>
-      <h2 id={id} className="mt-1 text-2xl sm:text-3xl font-bold text-gray-900">
-        {title}
-      </h2>
-    </div>
-  );
-}
-
-function CheckList({ items }: { items: string[] }) {
-  return (
-    <ul className="space-y-3">
-      {items.map((item) => (
-        <li key={item} className="flex items-start gap-3 text-gray-800">
-          <FaCheck className="mt-1 shrink-0 text-primary" aria-hidden="true" />
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
+const GERMANY_SERVICES = ['רכישה והשבחה של בנייני מגורים', 'שיווק ומכירה של דירות להשקעה מניבות'];
 
 export default function LavanGroupPage() {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lavangroup.co.il';
-
-  const breadcrumbItems = [
-    { label: 'דף הבית', href: '/' },
-    { label: 'LAVAN Group' },
-  ];
 
   const jsonLd = [
     {
@@ -96,211 +86,166 @@ export default function LavanGroupPage() {
       description: PAGE_DESCRIPTION,
       areaServed: ['Israel', 'Poland', 'Germany'].map((name) => ({ '@type': 'Country', name })),
       subOrganization: [
-        {
-          '@type': 'Store',
-          name: 'לבן – צבעים וחומרי בניין',
-          url: baseUrl,
-          telephone: PHONE_INTL,
-          areaServed: { '@type': 'Country', name: 'Israel' },
-        },
+        { '@type': 'Store', name: 'לבן – צבעים וחומרי בניין', url: baseUrl, telephone: PHONE_INTL },
         {
           '@type': 'LocalBusiness',
           name: 'לבן גרופ: פיתוח וקידוח',
-          description: 'בדיקות קרקע בכל חלקי הארץ. מורשה משרד הביטחון ומשתתף במכרזים ממשלתיים.',
+          description: 'בדיקות קרקע בכל חלקי הארץ. מורשה משרד הביטחון, עבודה במכרזים ממשלתיים.',
           url: `${baseUrl}${PAGE_PATH}#drilling`,
           telephone: PHONE_INTL,
-          image: `${baseUrl}${IMG}/drilling-rig-side.webp`,
+          image: `${baseUrl}${IL}/drilling-rig-side.webp`,
           areaServed: { '@type': 'Country', name: 'Israel' },
         },
-        {
-          '@type': 'Organization',
-          name: 'LAVAN PL Sp. z o.o.',
-          url: `${baseUrl}${PAGE_PATH}#poland`,
-          areaServed: { '@type': 'Country', name: 'Poland' },
-        },
-        {
-          '@type': 'Organization',
-          name: 'LAVAN De GmbH',
-          url: `${baseUrl}${PAGE_PATH}#germany`,
-          areaServed: { '@type': 'Country', name: 'Germany' },
-        },
+        { '@type': 'Organization', name: 'LAVAN PL Sp. z o.o.', url: `${baseUrl}/lavan-group/poland` },
+        { '@type': 'Organization', name: 'LAVAN De GmbH', url: `${baseUrl}${PAGE_PATH}#germany` },
       ],
     },
   ];
 
   return (
-    <main className="min-h-screen pt-36 md:pt-40 mb-5 max-w-6xl mx-auto px-4 sm:px-6" dir="rtl">
+    <main dir="rtl">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <Breadcrumbs items={breadcrumbItems} />
+
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 pt-36 md:pt-40">
+        <Breadcrumbs items={[{ label: 'דף הבית', href: '/' }, { label: 'LAVAN Group' }]} />
+      </div>
 
       {/* Hero */}
-      <header className="rounded-2xl bg-gray-900 text-white px-6 py-10 sm:px-12 sm:py-14 shadow-lg">
-        <p className="text-sm font-semibold tracking-widest text-yellow-400">LAVAN GROUP</p>
-        <h1 className="mt-3 text-3xl sm:text-5xl font-bold leading-tight">ישראל · פולין · גרמניה</h1>
-        <p className="mt-5 max-w-3xl text-base sm:text-lg text-gray-200 leading-relaxed">
-          בישראל – צבעים וחומרי בניין, בדיקות קרקע ויזמות נדל&quot;ן פרטי ומסחרי. בפולין ובגרמניה – איתור,
-          רכישה, השבחה ובנייה של נכסי מגורים ומסחר, דירות להשקעה וניהול נכסים.
-        </p>
-        <nav aria-label="מדינות הפעילות" className="mt-8 flex flex-wrap gap-3">
-          {[
-            { href: '#israel', label: '🇮🇱 ישראל' },
-            { href: '#poland', label: '🇵🇱 פולין' },
-            { href: '#germany', label: '🇩🇪 גרמניה' },
-          ].map((l) => (
-            <a key={l.href} href={l.href} className="rounded-full bg-white/10 px-5 py-2 font-semibold hover:bg-white/20 transition">
-              {l.label}
-            </a>
-          ))}
-        </nav>
+      <header className="relative mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="relative overflow-hidden bg-[var(--lv-ink)] min-h-[440px] sm:min-h-[520px] flex items-end">
+          <Image
+            src={`${IL}/herzliya-private-house-night.webp`}
+            alt=""
+            aria-hidden="true"
+            fill
+            priority
+            unoptimized
+            className="object-cover opacity-55"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[var(--lv-ink)] via-[var(--lv-ink)]/60 to-transparent" />
+          <div className="relative w-full px-6 sm:px-12 pb-10 sm:pb-14 pt-24 text-white">
+            <p className="lv-latin text-sm text-[var(--lv-gold)]" dir="ltr" style={{ textAlign: 'right' }}>
+              LAVAN GROUP
+            </p>
+            <h1 className="lv-serif mt-3 text-4xl sm:text-6xl leading-[1.1]">ישראל · פולין · גרמניה</h1>
+            <span className="lv-rule mt-6" aria-hidden="true" />
+            <p className="mt-6 max-w-2xl text-base sm:text-lg font-light leading-relaxed text-white/85">
+              בישראל – צבעים וחומרי בניין, בדיקות קרקע ויזמות נדל&quot;ן פרטי ומסחרי. בפולין ובגרמניה – איתור,
+              רכישה, השבחה ובנייה של נכסי מגורים ומסחר, דירות להשקעה וניהול נכסים.
+            </p>
+            <nav aria-label="מדינות הפעילות" className="mt-8 flex flex-wrap gap-3">
+              <a href="#israel" className="lv-btn-ghost">ישראל</a>
+              <Link href="/lavan-group/poland" className="lv-btn-ghost">פולין</Link>
+              <a href="#germany" className="lv-btn-ghost">גרמניה</a>
+            </nav>
+          </div>
+        </div>
       </header>
 
       {/* ── Israel ── */}
-      <section id="israel" className="mt-14 scroll-mt-40" aria-labelledby="israel-heading">
-        <SectionTitle id="israel-heading" kicker="ISRAEL" title="🇮🇱 ישראל" />
+      <section id="israel" className="scroll-mt-40 mx-auto max-w-6xl px-4 sm:px-6 py-20" aria-labelledby="israel-heading">
+        <SectionHead id="israel-heading" kicker="ISRAEL" title="ישראל" />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <article className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col">
-            <FaPaintRoller className="text-primary text-3xl" aria-hidden="true" />
-            <h3 className="mt-3 text-xl font-bold text-gray-900">לבן – צבעים וחומרי בניין</h3>
-            <p className="mt-2 text-gray-700 leading-relaxed flex-1">
+        {/* Store */}
+        <article className="lv-card grid md:grid-cols-[1fr_auto] gap-6 items-center p-8 sm:p-10">
+          <div>
+            <p className="lv-kicker" dir="ltr" style={{ textAlign: 'right' }}>01 · PAINTS &amp; BUILDING MATERIALS</p>
+            <h3 className="lv-serif mt-3 text-2xl sm:text-3xl text-[var(--lv-ink)]">לבן – צבעים וחומרי בניין</h3>
+            <p className="mt-3 max-w-2xl text-[var(--lv-muted)] font-light leading-relaxed">
               בית מסחר לצבעים וחומרי בניין לקבלנים, לחברות בנייה ולבונים פרטיים, עם אספקה ישירה לאתר.
             </p>
-            <Link
-              href="/"
-              title="לחנות הצבעים וחומרי הבניין של לבן"
-              className="mt-5 inline-flex justify-center rounded-lg bg-primary px-5 py-3 text-white font-semibold hover:bg-primary-600 transition"
-            >
-              לחנות
-            </Link>
-          </article>
-
-          <article className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-            <FaCity className="text-primary text-3xl" aria-hidden="true" />
-            <h3 className="mt-3 text-xl font-bold text-gray-900">יזמות נדל&quot;ן</h3>
-            <p className="mt-2 text-gray-700 leading-relaxed">ייזום פרויקטים של נדל&quot;ן פרטי ומסחרי.</p>
-          </article>
-        </div>
+          </div>
+          <Link href="/" title="לחנות הצבעים וחומרי הבניין של לבן" className="lv-btn-dark">
+            לחנות
+          </Link>
+        </article>
 
         {/* Drilling */}
-        <article id="drilling" className="mt-5 scroll-mt-40 rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-2">
-            <div className="p-6 sm:p-8">
-              <FaTools className="text-primary text-3xl" aria-hidden="true" />
-              <h3 className="mt-3 text-2xl font-bold text-gray-900">לבן גרופ: פיתוח וקידוח</h3>
-              <p className="mt-2 text-lg text-gray-800">בדיקות קרקע בכל חלקי הארץ.</p>
-              <ul className="mt-5 flex flex-wrap gap-2">
-                {DRILLING_BADGES.map((b) => (
-                  <li key={b} className="rounded-full bg-white border border-gray-300 px-4 py-1.5 text-sm font-semibold text-gray-800">
-                    {b}
-                  </li>
-                ))}
-              </ul>
-              <a
-                href={`tel:${PHONE_INTL}`}
-                title={`התקשרו ללבן גרופ: פיתוח וקידוח – ${PHONE_DISPLAY}`}
-                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-3 text-white font-semibold hover:bg-gray-700 transition"
-              >
+        <article id="drilling" className="scroll-mt-40 lv-card mt-6 grid lg:grid-cols-2 overflow-hidden">
+          <div className="p-8 sm:p-10 flex flex-col">
+            <p className="lv-kicker" dir="ltr" style={{ textAlign: 'right' }}>02 · DEVELOPMENT &amp; DRILLING</p>
+            <h3 className="lv-serif mt-3 text-2xl sm:text-3xl text-[var(--lv-ink)]">לבן גרופ: פיתוח וקידוח</h3>
+            <div className="mt-6">
+              <Bullets items={DRILLING_POINTS} />
+            </div>
+            <div className="mt-8">
+              <a href={`tel:${PHONE_INTL}`} title={`לבן גרופ: פיתוח וקידוח – ${PHONE_DISPLAY}`} className="lv-btn">
                 <FaPhoneAlt aria-hidden="true" />
                 <span dir="ltr">{PHONE_DISPLAY}</span>
               </a>
             </div>
-            <div className="grid grid-cols-5 gap-1 bg-gray-200">
-              <Image
-                src={`${IMG}/drilling-rig-side.webp`}
-                alt="מכונת קידוח לבדיקות קרקע של לבן גרופ: פיתוח וקידוח – מבט צד"
-                width={1200}
-                height={800}
-                unoptimized
-                className="col-span-3 h-full w-full object-cover"
-              />
-              <Image
-                src={`${IMG}/drilling-rig-mast.webp`}
-                alt="מכונת הקידוח של לבן גרופ: פיתוח וקידוח עם תורן מורם"
-                width={900}
-                height={1351}
-                unoptimized
-                className="col-span-2 h-full w-full object-cover"
-              />
+          </div>
+          <div className="grid grid-cols-5 gap-px bg-[var(--lv-line)] min-h-[280px]">
+            <Photo img={DRILLING[0]} className="col-span-3" />
+            <Photo img={DRILLING[1]} className="col-span-2" />
+          </div>
+        </article>
+
+        {/* Real-estate development */}
+        <article id="development" className="scroll-mt-40 mt-6">
+          <div className="lv-card p-8 sm:p-10 border-b-0">
+            <p className="lv-kicker" dir="ltr" style={{ textAlign: 'right' }}>03 · REAL ESTATE DEVELOPMENT</p>
+            <h3 className="lv-serif mt-3 text-2xl sm:text-3xl text-[var(--lv-ink)]">יזמות נדל&quot;ן</h3>
+            <p className="mt-3 text-[var(--lv-muted)] font-light leading-relaxed">ייזום פרויקטים של נדל&quot;ן פרטי ומסחרי.</p>
+          </div>
+          <div className="lv-card overflow-hidden">
+            <div className="grid md:grid-cols-2 gap-px bg-[var(--lv-line)]">
+              <Photo img={HERZLIYA[0]} className="aspect-[16/9]" />
+              <Photo img={HERZLIYA[1]} className="aspect-[16/9]" />
+            </div>
+            <div className="p-6 sm:p-8 flex flex-wrap items-baseline justify-between gap-3">
+              <div>
+                <p className="text-sm text-[var(--lv-muted)]">פרויקטים פרטיים</p>
+                <h4 className="lv-serif text-xl sm:text-2xl text-[var(--lv-ink)]">בתים פרטיים – הרצליה</h4>
+              </div>
+              <p className="text-xs text-[var(--lv-muted)]">תכנון: אדריכל גדי פוליטי · הדמיות: OneViz Studio</p>
             </div>
           </div>
         </article>
       </section>
 
       {/* ── Poland ── */}
-      <section id="poland" className="mt-16 scroll-mt-40" aria-labelledby="poland-heading">
-        <SectionTitle id="poland-heading" kicker="LAVAN PL SP. Z O.O." title="🇵🇱 פולין" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <section id="poland" className="scroll-mt-40 bg-[var(--lv-sand)]" aria-labelledby="poland-heading">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-20 grid gap-12 lg:grid-cols-2 items-center">
           <div>
-            <CheckList items={POLAND_SERVICES} />
-            <h3 className="mt-8 text-xl font-bold text-gray-900">פרויקטים</h3>
-            <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <SectionHead id="poland-heading" kicker="LAVAN PL SP. Z O.O." title="פולין" />
+            <Bullets items={POLAND_SERVICES} />
+            <ul className="mt-10 grid sm:grid-cols-2 gap-px bg-[var(--lv-line)] border border-[var(--lv-line)]">
               {POLAND_PROJECTS.map((p) => (
-                <li key={p.name}>
-                  <Link
-                    href={`/lavan-group/poland#${p.id}`}
-                    className="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-primary transition"
-                  >
-                    <span className="block text-lg font-bold text-gray-900" dir="ltr" style={{ textAlign: 'right' }}>
+                <li key={p.id} className="bg-white">
+                  <Link href={`/lavan-group/poland#${p.id}`} className="block p-5 hover:bg-[var(--lv-cream)] transition">
+                    <span className="lv-latin block text-lg text-[var(--lv-ink)]" dir="ltr" style={{ textAlign: 'right' }}>
                       {p.name}
                     </span>
-                    <span className="mt-1 block text-sm text-gray-600">{p.text}</span>
+                    <span className="mt-1 block text-sm text-[var(--lv-muted)]">{p.text}</span>
                   </Link>
                 </li>
               ))}
             </ul>
-            <Link
-              href="/lavan-group/poland"
-              title="LAVAN PL – פרויקטים ונדל״ן להשקעה בפולין"
-              className="mt-6 inline-flex justify-center rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-primary-600 transition"
-            >
+            <Link href="/lavan-group/poland" title="LAVAN PL – נדל״ן להשקעה בפולין" className="lv-btn mt-8">
               לעמוד LAVAN PL
             </Link>
           </div>
-          <Link href="/lavan-group/poland#kato" className="block overflow-hidden rounded-2xl shadow-md">
-            <Image
-              src={`${IMG}/poland/kato-facade-evening.webp`}
-              alt="LAVAN KATO – מלון דירות מניב בקטוביץ"
-              width={1200}
-              height={900}
-              unoptimized
-              className="w-full h-auto"
+          <Link href="/lavan-group/poland#kato" className="block">
+            <Photo
+              img={{ src: `${PL}/kato-facade-evening.webp`, alt: 'LAVAN KATO – מלון דירות מניב בקטוביץ', w: 1200, h: 900 }}
+              className="aspect-[4/3] shadow-xl"
             />
           </Link>
         </div>
       </section>
 
       {/* ── Germany ── */}
-      <section id="germany" className="mt-16 scroll-mt-40" aria-labelledby="germany-heading">
-        <SectionTitle id="germany-heading" kicker="LAVAN DE GMBH" title="🇩🇪 גרמניה" />
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <CheckList items={GERMANY_SERVICES} />
+      <section id="germany" className="scroll-mt-40 mx-auto max-w-6xl px-4 sm:px-6 py-20" aria-labelledby="germany-heading">
+        <div className="grid gap-10 lg:grid-cols-2 items-start">
+          <SectionHead id="germany-heading" kicker="LAVAN DE GMBH" title="גרמניה" />
+          <div className="lv-card p-8 sm:p-10">
+            <Bullets items={GERMANY_SERVICES} />
+          </div>
         </div>
       </section>
 
-      {/* Contact */}
-      <section className="mt-16 rounded-2xl bg-gray-900 text-white p-6 sm:p-10" aria-labelledby="contact-heading">
-        <h2 id="contact-heading" className="text-2xl sm:text-3xl font-bold">יצירת קשר עם LAVAN Group</h2>
-        <div className="mt-6 flex flex-col sm:flex-row gap-3">
-          <a
-            href={`tel:${PHONE_INTL}`}
-            title={`התקשרו – ${PHONE_DISPLAY}`}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold hover:bg-primary-600 transition"
-          >
-            <FaPhoneAlt aria-hidden="true" />
-            <span dir="ltr">{PHONE_DISPLAY}</span>
-          </a>
-          <a
-            href="https://wa.me/972505342813"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="שיחת וואטסאפ עם LAVAN Group"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-white px-6 py-3 font-semibold hover:bg-white hover:text-gray-900 transition"
-          >
-            <FaWhatsapp aria-hidden="true" />
-            וואטסאפ
-          </a>
-        </div>
-      </section>
+      <ContactBand title="יצירת קשר עם LAVAN Group" />
     </main>
   );
 }
