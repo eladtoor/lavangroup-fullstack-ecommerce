@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppSelector } from '@/lib/redux/hooks';
+import { usePersistRehydrated } from '@/lib/redux/usePersistRehydrated';
 
 interface RoleProtectedRouteProps {
   children: React.ReactNode;
@@ -13,8 +14,16 @@ export default function RoleProtectedRoute({ children, allowedRoles }: RoleProte
   const user = useAppSelector((state) => state.user?.user);
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const rehydrated = usePersistRehydrated();
 
   useEffect(() => {
+    // Wait until the saved login has been restored before deciding (otherwise a logged-in admin
+    // would be redirected while the persisted user is still loading).
+    if (!rehydrated) {
+      setIsAuthorized(null);
+      return;
+    }
+
     // User is still loading
     if (user === undefined) {
       setIsAuthorized(null);
@@ -38,7 +47,7 @@ export default function RoleProtectedRoute({ children, allowedRoles }: RoleProte
     }
 
     setIsAuthorized(true);
-  }, [user, allowedRoles, router]);
+  }, [user, allowedRoles, router, rehydrated]);
 
   // Show loading spinner while checking authorization
   if (isAuthorized === null) {

@@ -1,28 +1,12 @@
 'use client';
 
 import { Provider } from 'react-redux';
-import { PersistGate } from 'redux-persist/integration/react';
-import { store, persistor } from '@/lib/redux/store';
+import { store, INITIAL_STATE } from '@/lib/redux/store';
 import { useEffect, useCallback } from 'react';
 import { initializeFirebaseAuth } from '@/lib/firebase';
 import { initializeWebSocket } from '@/lib/websocket';
 import { revalidateProductsOnFocus } from '@/lib/redux/actions/productActions';
 import { revalidateCategoriesOnFocus } from '@/lib/redux/actions/categoryActions';
-
-// Loading skeleton for PersistGate - prevents blank screen during hydration
-function LoadingSkeleton() {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* NavBar skeleton */}
-      <div className="h-16 bg-white shadow-sm" />
-      {/* Content skeleton */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="h-8 bg-gray-200 rounded w-1/3 mb-4" />
-        <div className="h-64 bg-gray-200 rounded" />
-      </div>
-    </div>
-  );
-}
 
 function RevalidationHandler() {
   useEffect(() => {
@@ -85,11 +69,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [deferredInit]);
 
   return (
-    <Provider store={store}>
-      <PersistGate loading={<LoadingSkeleton />} persistor={persistor}>
-        <RevalidationHandler />
-        {children}
-      </PersistGate>
+    // No PersistGate: it rendered a skeleton on the server, so pages reached search engines without
+    // their content. Children now render immediately; persisted state (user, product/category cache)
+    // rehydrates in the background. The cart is not persisted (it is loaded from Firestore per user).
+    // Guards that depend on the persisted user wait for rehydration via usePersistRehydrated().
+    <Provider store={store} serverState={INITIAL_STATE}>
+      <RevalidationHandler />
+      {children}
     </Provider>
   );
 }
