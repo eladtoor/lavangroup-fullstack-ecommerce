@@ -32,8 +32,10 @@ const POLAND_SERVICES = [
 ];
 
 const POLAND_PROJECTS = [
-  { name: 'LAVAN WIDOK 12', text: 'פרויקט מגורים בקטוביץ.' },
-  { name: 'LAVAN KATO', text: 'מלון דירות מניב בקטוביץ – 26 יחידות ושטח מסחרי בקומת הקרקע.' },
+  { id: 'kato', name: 'LAVAN KATO', text: 'מלון דירות מניב – קטוביץ' },
+  { id: 'widok12', name: 'LAVAN WIDOK 12', text: 'פרויקט מגורים בוטיק – קטוביץ' },
+  { id: 'gliwice', name: 'LAVAN GLIWICE', text: '24 דירות וחניון תת-קרקעי – גליביצה' },
+  { id: 'zabrze', name: 'Roosevelta 22', text: 'מגורים ומסחר – זברז׳ה' },
 ];
 
 const GERMANY_SERVICES = [
@@ -227,52 +229,43 @@ export default function LavanGroupPage() {
       {/* ── Poland ── */}
       <section id="poland" className="mt-16 scroll-mt-40" aria-labelledby="poland-heading">
         <SectionTitle id="poland-heading" kicker="LAVAN PL SP. Z O.O." title="🇵🇱 פולין" />
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <div>
             <CheckList items={POLAND_SERVICES} />
             <h3 className="mt-8 text-xl font-bold text-gray-900">פרויקטים</h3>
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
               {POLAND_PROJECTS.map((p) => (
-                <article key={p.name} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                  <h4 className="text-lg font-bold text-gray-900" dir="ltr" style={{ textAlign: 'right' }}>
-                    {p.name}
-                  </h4>
-                  <p className="mt-2 text-gray-700">{p.text}</p>
-                </article>
+                <li key={p.name}>
+                  <Link
+                    href={`/lavan-group/poland#${p.id}`}
+                    className="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-primary transition"
+                  >
+                    <span className="block text-lg font-bold text-gray-900" dir="ltr" style={{ textAlign: 'right' }}>
+                      {p.name}
+                    </span>
+                    <span className="mt-1 block text-sm text-gray-600">{p.text}</span>
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
+            <Link
+              href="/lavan-group/poland"
+              title="LAVAN PL – פרויקטים ונדל״ן להשקעה בפולין"
+              className="mt-6 inline-flex justify-center rounded-lg bg-primary px-6 py-3 text-white font-semibold hover:bg-primary-600 transition"
+            >
+              לעמוד LAVAN PL
+            </Link>
           </div>
-          <figure className="overflow-hidden rounded-2xl shadow-md">
+          <Link href="/lavan-group/poland#kato" className="block overflow-hidden rounded-2xl shadow-md">
             <Image
-              src={`${IMG}/poland-residential-building.webp`}
-              alt="הדמיה של פרויקט מגורים של LAVAN בפולין"
-              width={1176}
-              height={713}
+              src={`${IMG}/poland/kato-facade-evening.webp`}
+              alt="LAVAN KATO – מלון דירות מניב בקטוביץ"
+              width={1200}
+              height={900}
               unoptimized
               className="w-full h-auto"
             />
-          </figure>
-        </div>
-
-        <h3 className="mt-10 text-xl font-bold text-gray-900">דירות להשקעה</h3>
-        <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <Image
-            src={`${IMG}/poland-apartment-bedroom.webp`}
-            alt="חדר שינה בדירת השקעה מנוהלת של LAVAN בפולין"
-            width={900}
-            height={1200}
-            unoptimized
-            className="w-full aspect-[3/4] object-cover rounded-xl shadow-sm"
-          />
-          <Image
-            src={`${IMG}/poland-apartment-bathroom.webp`}
-            alt="חדר רחצה בדירת השקעה מנוהלת של LAVAN בפולין"
-            width={900}
-            height={1200}
-            unoptimized
-            className="w-full aspect-[3/4] object-cover rounded-xl shadow-sm"
-          />
+          </Link>
         </div>
       </section>
 
