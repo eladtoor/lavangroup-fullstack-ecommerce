@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { FaCheckCircle, FaTruck, FaUserTie, FaBuilding } from "react-icons/fa";
 
 export default function AboutUs() {
@@ -12,7 +13,11 @@ export default function AboutUs() {
         {/* תיאור כללי */}
         <p className="text-base sm:text-lg text-gray-700 mt-6 leading-relaxed">
           <strong>ברוכים הבאים ל"לבן"</strong> – בית מסחר בפריסה ארצית לצבעים
-          וחומרי בניין, מקבוצת <strong>LAVAN Group</strong>.
+          וחומרי בניין, מקבוצת{" "}
+          <Link href="/lavan-group" title="על קבוצת LAVAN Group" className="font-bold text-primary hover:underline">
+            LAVAN Group
+          </Link>
+          .
           <br />
           לבן מציעה פתרונות מותאמים אישית לקבלנים ולחברות בנייה, החל מליווי טכני
           עם צוות יועצים מומחים, דרך בניית מפרטי חומרים מותאמים, ועד אספקה ישירה

@@ -257,6 +257,14 @@ export default function NavBar() {
               דף הבית
             </Link>
             <span className="text-gray-500">|</span>
+            <Link
+              href="/lavan-group"
+              title="LAVAN Group – הקבוצה"
+              className="px-4 py-2 text-white hover:bg-gray-700 rounded transition-colors whitespace-nowrap font-semibold"
+            >
+              LAVAN Group
+            </Link>
+            <span className="text-gray-500">|</span>
             
             {/* Main Category with Mega Menu */}
             {categoriesArray.length > 0 && (
@@ -313,6 +321,14 @@ export default function NavBar() {
                 onClick={toggleMenu}
               >
                 דף הבית
+              </Link>
+              <Link
+                href="/lavan-group"
+                title="LAVAN Group – הקבוצה"
+                className="text-gray-900 font-bold bg-gray-100 border-b border-white py-3 px-4 text-center hover:bg-blue-900 hover:text-white transition-colors duration-300"
+                onClick={toggleMenu}
+              >
+                LAVAN Group
               </Link>
 
             <div className="text-2xl font-bold text-center text-gray-800 border-b-2 border-gray-300 pb-4">
