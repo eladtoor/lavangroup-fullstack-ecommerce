@@ -231,7 +231,7 @@ export default function LavanPolandPage() {
   ];
 
   return (
-    <main dir="rtl">
+    <div dir="rtl">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       <div className="mx-auto max-w-6xl px-4 sm:px-6 pt-36 md:pt-40">
@@ -384,6 +384,6 @@ export default function LavanPolandPage() {
         text="דברו איתנו ונשלח לכם את כרטיסי הדירות, המחירים והמבנה המשפטי של ההשקעה."
         waText="שלום, אשמח לפרטים על פרויקטי LAVAN PL בפולין"
       />
-    </main>
+    </div>
   );
 }

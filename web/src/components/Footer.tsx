@@ -43,6 +43,11 @@ export default function Footer() {
               </Link>
             </li>
             <li>
+              <Link href="/articles" title="מאמרים ומדריכים מקצועיים לקבלנים ולבונים" className="text-lg hover:text-yellow-400 transition">
+                מאמרים ומדריכים
+              </Link>
+            </li>
+            <li>
               <Link href="/delivery-days" title="צפה בימי החלוקה שלנו לכל הארץ" className="text-lg hover:text-yellow-400 transition">
                 ימי חלוקה
               </Link>
