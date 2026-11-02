@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAppSelector, useAppDispatch } from '@/lib/redux/hooks';
@@ -51,7 +51,6 @@ export default function NavBar() {
 
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
@@ -68,9 +67,11 @@ export default function NavBar() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Close the search box on navigation. (Reading useSearchParams here would force every page out
+  // of static rendering, because NavBar is in the root layout.)
   useEffect(() => {
     setSearchVisible(false);
-  }, [pathname, searchParams]);
+  }, [pathname]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +82,8 @@ export default function NavBar() {
     setSearchError('');
     router.push(`/search?query=${encodeURIComponent(searchQuery)}`);
     setSearchQuery('');
-    if (isDesktop) setSearchVisible(false);
+    // Close after searching (on mobile this used to happen via the search-params change).
+    setSearchVisible(false);
   };
 
   const handleSignOut = async () => {
