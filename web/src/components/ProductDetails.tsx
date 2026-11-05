@@ -601,6 +601,18 @@ export default function ProductDetails({
                 </button>
               </div>
             )}
+
+            {/* Quote / technical consultation: opens the lead form with this product pre-filled.
+                Also the path to buy products that have no list price yet. */}
+            {mode === 'page' && (
+              <a
+                href={`/contact?product=${encodeURIComponent(String(product['שם'] || ''))}`}
+                className="mt-3 flex w-full items-center justify-center rounded-lg border-2 border-orange-600 py-3 font-bold text-orange-700 hover:bg-orange-50 transition"
+                title="הצעת מחיר לכמות או ייעוץ טכני על המוצר"
+              >
+                הצעת מחיר לכמות / ייעוץ טכני
+              </a>
+            )}
           </div>
         )}
       </div>

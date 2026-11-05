@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Rubik } from "next/font/google";
 import { Providers } from "./providers";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -27,12 +27,13 @@ const Footer = dynamic(() => import("@/components/Footer"), {
   ssr: true, // Footer is important for SEO, keep SSR
 });
 
-const inter = Inter({
-  subsets: ["latin"],
+// Site font: Rubik (Hebrew + Latin), chosen for clear prices, buttons and product names.
+const rubik = Rubik({
+  subsets: ["hebrew", "latin"],
   display: "swap",
   preload: true,
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-inter",
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-sans",
 });
 
 export const viewport: Viewport = {
@@ -95,7 +96,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="he" dir="rtl" className={inter.variable}>
+    <html lang="he" dir="rtl" className={rubik.variable}>
       <head>
         {/* Preconnect to external resources for faster loading */}
         <link rel="preconnect" href="https://res.cloudinary.com" />
@@ -105,7 +106,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://vee-crm.com" />
         <link rel="dns-prefetch" href="https://vee-crm.com" />
       </head>
-      <body className={`${inter.className} flex flex-col min-h-screen`}>
+      <body className={`${rubik.className} flex flex-col min-h-screen`}>
         <GoogleTagManager />
         <Providers>
           <GTranslateScript />

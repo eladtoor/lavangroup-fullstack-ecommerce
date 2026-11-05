@@ -43,6 +43,26 @@ export default function Footer() {
               </Link>
             </li>
             <li>
+              <Link href="/contact" title="ייעוץ טכני והצעת מחיר" className="text-lg hover:text-yellow-400 transition">
+                ייעוץ טכני והצעת מחיר
+              </Link>
+            </li>
+            <li>
+              <Link href="/soil-testing" title="בדיקות קרקע בכל הארץ" className="text-lg hover:text-yellow-400 transition">
+                בדיקות קרקע
+              </Link>
+            </li>
+            <li>
+              <Link href="/real-estate-poland" title="נדל״ן בפולין" className="text-lg hover:text-yellow-400 transition">
+                נדל״ן בפולין
+              </Link>
+            </li>
+            <li>
+              <Link href="/real-estate-germany" title="נדל״ן בגרמניה" className="text-lg hover:text-yellow-400 transition">
+                נדל״ן בגרמניה
+              </Link>
+            </li>
+            <li>
               <Link href="/articles" title="מאמרים ומדריכים מקצועיים לקבלנים ולבונים" className="text-lg hover:text-yellow-400 transition">
                 מאמרים ומדריכים
               </Link>
