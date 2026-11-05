@@ -1,7 +1,7 @@
 /*
  * LAVAN Group pages — visual identity (scoped to .lv, so the store is unaffected).
  * Palette follows the LAVAN project materials: graphite, cream, sand and brushed gold.
- * Fonts are self-hosted via @fontsource (imported in layout.tsx): no requests to Google.
+ * Font: Rubik, the site-wide font (next/font, self-hosted at build time).
  */
 
 .lv {
@@ -15,28 +15,28 @@
   --lv-gold: #b08d57;
   --lv-gold-dark: #8f7144;
 
-  font-family: 'Heebo Variable', 'Heebo', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
   color: var(--lv-text);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'kern';
 }
 
 .lv-serif {
-  font-family: 'Frank Ruhl Libre Variable', 'Frank Ruhl Libre', 'David', Georgia, serif;
-  font-weight: 500;
-  letter-spacing: -0.005em;
+  font-family: var(--font-sans), Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .lv-latin {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-sans), Arial, sans-serif;
   font-weight: 600;
   letter-spacing: 0.12em;
 }
 
 .lv-kicker {
-  font-family: 'Cormorant Garamond', Georgia, serif;
-  font-weight: 600;
-  font-size: 0.8rem;
+  font-family: var(--font-sans), Arial, sans-serif;
+  font-weight: 500;
+  font-size: 0.75rem;
   letter-spacing: 0.35em;
   text-transform: uppercase;
   color: var(--lv-gold);

@@ -275,6 +275,14 @@ export default function NavBar() {
               מאמרים
             </Link>
             <span className="text-gray-500">|</span>
+            <Link
+              href="/contact"
+              title="ייעוץ טכני והצעת מחיר"
+              className="px-4 py-2 text-white hover:bg-gray-700 rounded transition-colors whitespace-nowrap font-semibold"
+            >
+              ייעוץ טכני
+            </Link>
+            <span className="text-gray-500">|</span>
             
             {/* Main Category with Mega Menu */}
             {categoriesArray.length > 0 && (
@@ -347,6 +355,14 @@ export default function NavBar() {
                 onClick={toggleMenu}
               >
                 מאמרים
+              </Link>
+              <Link
+                href="/contact"
+                title="ייעוץ טכני והצעת מחיר"
+                className="text-white font-bold bg-orange-600 border-b border-white py-3 px-4 text-center hover:bg-orange-700 transition-colors duration-300"
+                onClick={toggleMenu}
+              >
+                ייעוץ טכני – השאירו פרטים
               </Link>
 
             <div className="text-2xl font-bold text-center text-gray-800 border-b-2 border-gray-300 pb-4">

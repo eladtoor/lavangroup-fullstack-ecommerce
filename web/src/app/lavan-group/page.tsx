@@ -59,10 +59,15 @@ const POLAND_PROJECTS = [
   { id: 'kato', name: 'LAVAN KATO', text: 'מלון דירות מניב · קטוביץ' },
   { id: 'widok12', name: 'LAVAN WIDOK 12', text: 'מגורים בוטיק · קטוביץ' },
   { id: 'gliwice', name: 'LAVAN GLIWICE', text: '24 דירות · הושלם ואוכלס' },
-  { id: 'zabrze', name: 'Roosevelta 22 – LAVAN', text: '24 דירות · הושלם ואוכלס' },
+  { id: 'zabrze', name: 'Roosevelta 22 – LAVAN', text: '33 יחידות דיור · הושלם ואוכלס' },
+  { id: 'zory', name: 'Bankowa 4 – LAVAN', text: 'מבנה בנק · נרכש, הושבח ונמכר' },
 ];
 
-const GERMANY_SERVICES = ['רכישה והשבחה של בנייני מגורים', 'שיווק ומכירה של דירות להשקעה מניבות'];
+const GERMANY_SERVICES = [
+  'רכישה והשבחה של בנייני מגורים',
+  'שיווק ומכירה של דירות להשקעה מניבות',
+  'פורטפוליו דירות להשקעה ורכישה ישירות מהבנקים',
+];
 
 export default function LavanGroupPage() {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lavangroup.co.il';
@@ -168,8 +173,11 @@ export default function LavanGroupPage() {
             <div className="mt-6">
               <Bullets items={DRILLING_POINTS} />
             </div>
-            <div className="mt-8">
-              <a href={`tel:${PHONE_INTL}`} title={`לבן גרופ: פיתוח וקידוח – ${PHONE_DISPLAY}`} className="lv-btn">
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/soil-testing" title="בדיקות קרקע – לבן גרופ: פיתוח וקידוח" className="lv-btn">
+                הצעת מחיר לבדיקת קרקע
+              </Link>
+              <a href={`tel:${PHONE_INTL}`} title={`לבן גרופ: פיתוח וקידוח – ${PHONE_DISPLAY}`} className="lv-btn-dark">
                 <FaPhoneAlt aria-hidden="true" />
                 <span dir="ltr">{PHONE_DISPLAY}</span>
               </a>
@@ -226,9 +234,14 @@ export default function LavanGroupPage() {
                 </li>
               ))}
             </ul>
-            <Link href="/lavan-group/poland" title="LAVAN PL – נדל״ן להשקעה בפולין" className="lv-btn mt-8">
-              לעמוד LAVAN PL
-            </Link>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/lavan-group/poland" title="LAVAN PL – פרויקטים בפולין" className="lv-btn-dark">
+                לעמוד LAVAN PL
+              </Link>
+              <Link href="/real-estate-poland" title="נדל״ן בפולין – רכישת דירה והשקעות" className="lv-btn">
+                השקעה בנדל״ן בפולין
+              </Link>
+            </div>
           </div>
           <Link href="/lavan-group/poland#kato" className="block">
             <Photo
@@ -245,6 +258,9 @@ export default function LavanGroupPage() {
           <SectionHead id="germany-heading" kicker="LAVAN DE GMBH" title="גרמניה" />
           <div className="lv-card p-8 sm:p-10">
             <Bullets items={GERMANY_SERVICES} />
+            <Link href="/real-estate-germany" title="נדל״ן בגרמניה – דירות להשקעה ורכישת בניינים" className="lv-btn mt-8">
+              השקעה בנדל״ן בגרמניה
+            </Link>
           </div>
         </div>
       </section>

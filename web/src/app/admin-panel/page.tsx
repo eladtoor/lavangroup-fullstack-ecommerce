@@ -7,6 +7,7 @@ import { maybeFetchCategories } from '@/lib/redux/actions/categoryActions';
 import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 import CategoryImageManager from '@/components/CategoryImageManager';
 import CategorySeoTextManager from '@/components/CategorySeoTextManager';
+import LeadsManager from '@/components/LeadsManager';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { adminPut } from '@/utils/adminApi';
 import {
@@ -535,7 +536,16 @@ function AdminPanelContent() {
           >
             תוכן SEO
           </button>
+          <button
+            onClick={() => setActiveTab('leads')}
+            className={`px-4 py-2 rounded ${activeTab === 'leads' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          >
+            פניות
+          </button>
         </nav>
+
+        {/* Leads Tab */}
+        {activeTab === 'leads' && <LeadsManager />}
 
         {/* Products Tab */}
         {activeTab === 'products' && (
