@@ -41,6 +41,17 @@ const HERZLIYA: Img[] = [
   { src: `${IL}/herzliya-private-house-night.webp`, alt: 'הדמיית בית פרטי של LAVAN בהרצליה – חזית בערב', w: 1600, h: 855 },
 ];
 
+const URBAN_VIEW: Img[] = [
+  { src: `${IL}/urban-view-brochure.webp`, alt: 'URBAN VIEW – משרדים להשקעה במגדלי הארבעה, תל אביב (קידמה השקעות נדל״ן)', w: 1024, h: 727 },
+];
+
+const GERMANY_BUILDING: Img = {
+  src: '/images/lavan-group/germany/germany-110-units.webp',
+  alt: 'בניין דירות של LAVAN De GmbH בגרמניה – 110 יחידות דיור',
+  w: 1146,
+  h: 269,
+};
+
 const DRILLING: Img[] = [
   { src: `${IL}/drilling-rig-side.webp`, alt: 'מכונת קידוח לבדיקות קרקע של לבן גרופ: פיתוח וקידוח', w: 1200, h: 800 },
   { src: `${IL}/drilling-rig-mast.webp`, alt: 'מכונת הקידוח של לבן גרופ: פיתוח וקידוח עם תורן מורם', w: 900, h: 1351 },
@@ -60,7 +71,7 @@ const POLAND_PROJECTS = [
   { id: 'widok12', name: 'LAVAN WIDOK 12', text: 'מגורים בוטיק · קטוביץ' },
   { id: 'gliwice', name: 'LAVAN GLIWICE', text: '24 דירות · הושלם ואוכלס' },
   { id: 'zabrze', name: 'Roosevelta 22 – LAVAN', text: '33 יחידות דיור · הושלם ואוכלס' },
-  { id: 'zory', name: 'Bankowa 4 – LAVAN', text: 'מבנה בנק · נרכש, הושבח ונמכר' },
+  { id: 'zory', name: 'ING Bankowa', text: 'ז׳ורי · מבנה בנק · נרכש, הושבח ונמכר' },
 ];
 
 const GERMANY_SERVICES = [
@@ -213,6 +224,29 @@ export default function LavanGroupPage() {
               <p className="text-xs text-[var(--lv-muted)]">תכנון: אדריכל גדי פוליטי · הדמיות: OneViz Studio</p>
             </div>
           </div>
+
+          {/* URBAN VIEW – Tel Aviv (executed under Kidma Real Estate Investments Ltd.) */}
+          <div id="urban-view" className="scroll-mt-40 lv-card overflow-hidden mt-6">
+            <div className="grid lg:grid-cols-[1.6fr_1fr]">
+              <Photo img={URBAN_VIEW[0]} className="aspect-[1024/727]" />
+              <div className="p-6 sm:p-8 flex flex-col gap-4">
+                <p className="text-sm text-[var(--lv-muted)]">משרדים להשקעה · תל אביב</p>
+                <h4 className="lv-latin text-2xl sm:text-3xl text-[var(--lv-ink)]" dir="ltr" style={{ textAlign: 'right' }}>URBAN VIEW</h4>
+                <p className="text-[var(--lv-muted)] font-light leading-relaxed">
+                  משרדים להשקעה עם שטחים משותפים במגדלי הארבעה היוקרתיים בתל אביב. הפרויקט בוצע באמצעות חברת הקבוצה, קידמה השקעות נדל״ן בע״מ.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="lv-chip">הושלם ואוכלס</span>
+                  <span className="lv-chip">קידמה השקעות נדל״ן בע״מ</span>
+                </div>
+                <Bullets items={[
+                  'טרקלין עסקים בקומה 14, עם מרפסת ונוף פנורמי לתל אביב ולגוש דן',
+                  'מסעדה, בית קפה ובר בתוך הטרקלין',
+                  'חדרי ישיבות ופינות ישיבה למפגשים עסקיים',
+                ]} />
+              </div>
+            </div>
+          </div>
         </article>
       </section>
 
@@ -263,6 +297,19 @@ export default function LavanGroupPage() {
             </Link>
           </div>
         </div>
+        <article className="lv-card overflow-hidden mt-10">
+          <Photo img={GERMANY_BUILDING} className="aspect-[1146/269] min-h-[200px]" />
+          <div className="p-6 sm:p-8 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-[var(--lv-muted)]">גרמניה · LAVAN De GmbH</p>
+              <h3 className="lv-serif mt-1 text-2xl text-[var(--lv-ink)]">בניין דירות – 110 יחידות דיור</h3>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="lv-chip">בשיווק</span>
+              <Link href="/real-estate-germany#lead" className="lv-btn-dark">קבלת פרטים</Link>
+            </div>
+          </div>
+        </article>
       </section>
 
       <ContactBand title="יצירת קשר עם LAVAN Group" />

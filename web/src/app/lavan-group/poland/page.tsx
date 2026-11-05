@@ -75,6 +75,7 @@ type Project = {
   facts: string[];
   images: Img[];
   link?: { href: string; label: string };
+  imageNote?: string; // small label over the main image, e.g. 'הדמיית תכנון'
 };
 
 const COMPLETED: Project[] = [
@@ -109,7 +110,7 @@ const COMPLETED: Project[] = [
   },
   {
     id: 'zory',
-    name: 'Bankowa 4 – LAVAN',
+    name: 'ING Bankowa',
     city: 'ז\'ורי',
     address: 'ul. Bankowa 4, Żory',
     status: 'הושלם · נמכר',
@@ -117,9 +118,10 @@ const COMPLETED: Project[] = [
     text: 'רכישת מבנה של בנק אירופי בז\'ורי. אחרי פעולות השבחה, המבנה נמכר בשוק המקומי כמה חודשים לאחר הרכישה, ברווח יזמי.',
     facts: ['מבנה מסחרי – בנק לשעבר', 'רכישה ← השבחה ← מכירה', 'נמכר בשוק המקומי', 'רווח יזמי תוך חודשים'],
     images: [
-      { src: `${IMG}/zory-bankowa-4-render.webp`, alt: 'Bankowa 4, ז\'ורי – הדמיית המבנה לאחר השבחה', w: 1394, h: 768 },
-      { src: `${IMG}/zory-bank-building.webp`, alt: 'Bankowa 4, ז\'ורי – מבנה הבנק לפני ההשבחה', w: 1368, h: 768 },
+      { src: `${IMG}/zory-bankowa-4-render.webp`, alt: 'ING Bankowa, ז\'ורי – הדמיית תכנון', w: 1394, h: 768 },
+      { src: `${IMG}/zory-bank-building.webp`, alt: 'ING Bankowa, ז\'ורי – מבנה הבנק', w: 1368, h: 768 },
     ],
+    imageNote: 'הדמיית תכנון',
   },
 ];
 
@@ -162,7 +164,12 @@ function ProjectBlock({ p, flip }: { p: Project; flip: boolean }) {
   return (
     <article id={p.id} className="scroll-mt-40 lv-card overflow-hidden">
       <div className={`grid lg:grid-cols-[1.15fr_1fr] ${flip ? 'lg:[direction:ltr]' : ''}`}>
-        <Photo img={main} className="[direction:rtl] aspect-[4/3] lg:aspect-auto lg:min-h-[420px]" />
+        <div className="relative [direction:rtl]">
+          <Photo img={main} className="h-full aspect-[4/3] lg:aspect-auto lg:min-h-[420px]" />
+          {p.imageNote && (
+            <span className="absolute bottom-3 right-3 px-3 py-1 text-sm text-white" style={{ background: 'rgba(20,20,20,.72)' }}>{p.imageNote}</span>
+          )}
+        </div>
         <div className="[direction:rtl] p-8 sm:p-10 flex flex-col">
           <div className="flex flex-wrap items-center gap-3">
             <span className="lv-chip">{p.status}</span>
