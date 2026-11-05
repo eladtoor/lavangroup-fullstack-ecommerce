@@ -17,7 +17,7 @@ import { FaPhoneAlt } from 'react-icons/fa';
 const PATH = '/soil-testing';
 const TITLE = 'בדיקות קרקע בכל הארץ | לבן גרופ: פיתוח וקידוח';
 const DESCRIPTION =
-  'קידוחים לבדיקות קרקע ליזמים, קבלנים, בוני בתים וגופים ציבוריים בכל הארץ. מורשה משרד הביטחון, עבודה במכרזים ממשלתיים. השאירו פרטים להצעת מחיר.';
+  'קידוחי קרקע באמצעות מכונות קידוח מהמתקדמות בעולם, ליזמים, קבלנים, בוני בתים וגופים ציבוריים בכל הארץ. מורשה משרד הביטחון, עבודה במכרזים ממשלתיים. השאירו פרטים להצעת מחיר.';
 const IMG = '/images/lavan-group/israel';
 
 export const metadata: Metadata = {
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   },
 };
 
-const CREDENTIALS = ['מורשה משרד הביטחון', 'עבודה במכרזים ממשלתיים', 'פריסה בכל חלקי הארץ'];
+const CREDENTIALS = ['מכונות קידוח מהמתקדמות בעולם', 'מורשה משרד הביטחון', 'עבודה במכרזים ממשלתיים', 'פריסה בכל חלקי הארץ'];
 
 const AUDIENCES = [
   { title: 'יזמים ובוני בתים', text: 'בדיקת קרקע לפני תכנון היסודות של בית פרטי, וילה או בניין מגורים.' },
@@ -109,7 +109,7 @@ export default function SoilTestingPage() {
               <p className="lv-kicker" dir="ltr" style={{ textAlign: 'right' }}>LAVAN GROUP · DEVELOPMENT &amp; DRILLING</p>
               <h1 className="lv-serif mt-3 text-4xl sm:text-6xl leading-[1.1]">בדיקות קרקע בכל הארץ</h1>
               <p className="mt-5 max-w-2xl text-lg font-light leading-relaxed text-white/85">
-                לבן גרופ: פיתוח וקידוח מבצעת קידוחים לבדיקות קרקע ליזמים, לקבלנים, לבוני בתים ולגופים ציבוריים.
+                לבן גרופ: פיתוח וקידוח מבצעת קידוחי קרקע באמצעות מכונות קידוח מהמתקדמות בעולם – ליזמים, לקבלנים, לבוני בתים ולגופים ציבוריים.
               </p>
               <ul className="mt-6 flex flex-wrap gap-2">
                 {CREDENTIALS.map((c) => (
@@ -154,7 +154,7 @@ export default function SoilTestingPage() {
             </div>
             <figure>
               <Photo img={{ src: `${IMG}/drilling-rig-mast.webp`, alt: 'מכונת הקידוח של לבן גרופ: פיתוח וקידוח עם תורן מורם', w: 900, h: 1351 }} className="aspect-[4/5] shadow-xl" />
-              <figcaption className="mt-3 text-sm text-[var(--lv-muted)]">מכונת הקידוח של הקבוצה, על זחלים</figcaption>
+              <figcaption className="mt-3 text-sm text-[var(--lv-muted)]">מכונת קידוח של הקבוצה – מהמתקדמות בעולם</figcaption>
             </figure>
           </div>
         </section>

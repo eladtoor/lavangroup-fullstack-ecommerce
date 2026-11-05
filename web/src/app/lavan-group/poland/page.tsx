@@ -14,9 +14,9 @@ import { SectionHead, Bullets, Photo, ContactBand, PHONE_INTL, type Img } from '
  */
 
 const PAGE_PATH = '/lavan-group/poland';
-const PAGE_TITLE = 'LAVAN PL – נדל"ן להשקעה בפולין: קטוביץ, גליביצה וזברז\'ה';
+const PAGE_TITLE = 'LAVAN PL – נדל"ן להשקעה בפולין: קטוביץ, גליביצה, זברז\'ה וז\'ורי';
 const PAGE_DESCRIPTION =
-  'LAVAN PL Sp. z o.o. – איתור, השבחה ובנייה של פרויקטים למגורים ולמסחר בשלזיה, פולין. פרויקטים שהושלמו בגליביצה ובזברז\'ה, LAVAN KATO ו-LAVAN WIDOK 12 בקטוביץ, דירות להשקעה וניהול נכסים.';
+  'LAVAN PL Sp. z o.o. – איתור, השבחה ובנייה של פרויקטים למגורים ולמסחר בשלזיה, פולין. פרויקטים שהושלמו בגליביצה, בזברז\'ה ובז\'ורי, LAVAN KATO ו-LAVAN WIDOK 12 בקטוביץ, דירות להשקעה וניהול נכסים.';
 
 const IMG = '/images/lavan-group/poland';
 const KATO_3D_MODEL_URL = 'https://claude.ai/artifact/6ZzLpydtUWYneDQMpYZXTN';
@@ -46,7 +46,7 @@ const PILLARS = [
 
 const WHY_POLAND = [
   'שוק נדל"ן בתוך האיחוד האירופי, עם רישום מקרקעין מסודר (Księga wieczysta) ומערכת משפטית יציבה.',
-  'מטרופולין שלזיה – קטוביץ, גליביצה וזברז\'ה – אזור עירוני גדול ורציף, עם אוניברסיטאות, תעשייה ומשרדים.',
+  'מטרופולין שלזיה – קטוביץ, גליביצה, זברז\'ה וז\'ורי – אזור עירוני גדול ורציף, עם אוניברסיטאות, תעשייה ומשרדים.',
   'ביקוש קבוע לדירות להשכרה מצד סטודנטים, עובדים צעירים ואנשי עסקים.',
   'מחירי כניסה נמוכים משמעותית ממחירי הנדל"ן בישראל ובמערב אירופה.',
 ];
@@ -100,11 +100,25 @@ const COMPLETED: Project[] = [
     status: 'הושלם ואוכלס',
     tagline: 'מגורים מעל חזית מסחרית',
     text: 'בניין מגורים בעיצוב עכשווי בזברז\'ה, עיר במטרופולין שלזיה הצמודה לגליביצה ולקטוביץ. הפרויקט בוצע בשותפות LAVAN – Y.S investment.',
-    facts: ['24 דירות', 'בניין בן 4 קומות', 'קומת קרקע מסחרית', 'מרפסות גג'],
+    facts: ['33 יחידות דיור', 'בניין בן 4 קומות', 'קומת קרקע מסחרית', 'מרפסות גג'],
     images: [
       { src: `${IMG}/zabrze-photo.webp`, alt: 'Roosevelta 22 – LAVAN, זברז\'ה – הבניין לאחר השלמה', w: 1400, h: 790 },
       { src: `${IMG}/zabrze-render.webp`, alt: 'Roosevelta 22 – LAVAN, זברז\'ה – הדמיית חזית', w: 1155, h: 628 },
       { src: `${IMG}/zabrze-aerial.webp`, alt: 'Roosevelta 22 – LAVAN, זברז\'ה – מבט על מרפסת הגג', w: 1095, h: 817 },
+    ],
+  },
+  {
+    id: 'zory',
+    name: 'Bankowa 4 – LAVAN',
+    city: 'ז\'ורי',
+    address: 'ul. Bankowa 4, Żory',
+    status: 'הושלם · נמכר',
+    tagline: 'רכישה, השבחה ומכירה של מבנה בנק',
+    text: 'רכישת מבנה של בנק אירופי בז\'ורי. אחרי פעולות השבחה, המבנה נמכר בשוק המקומי כמה חודשים לאחר הרכישה, ברווח יזמי.',
+    facts: ['מבנה מסחרי – בנק לשעבר', 'רכישה ← השבחה ← מכירה', 'נמכר בשוק המקומי', 'רווח יזמי תוך חודשים'],
+    images: [
+      { src: `${IMG}/zory-bankowa-4-render.webp`, alt: 'Bankowa 4, ז\'ורי – הדמיית המבנה לאחר השבחה', w: 1394, h: 768 },
+      { src: `${IMG}/zory-bank-building.webp`, alt: 'Bankowa 4, ז\'ורי – מבנה הבנק לפני ההשבחה', w: 1368, h: 768 },
     ],
   },
 ];
@@ -134,7 +148,7 @@ const CURRENT: Project[] = [
     status: 'בשיווק · מסירה 05.2028',
     tagline: 'אור, מרחב ושקט',
     text: 'פרויקט מגורים בוטיק בגמרים טבעיים: פרקט אלון, אבן גיר בהירה, פליז מוברש ומטבחים בגוון גרפיט. מגוון הדירות פונה למשפחות, לזוגות צעירים ולמשקיעים.',
-    facts: ['20 דירות ב-5 קומות', '2–5 חדרים', 'דירות גן עם גינה פרטית', 'דירות גג דו-מפלסיות עם מרפסת גג', 'חניון תת-קרקעי, 25 מקומות'],
+    facts: ['20 יחידות דיור ב-5 קומות', 'דירות לפיצול וחלוקה', '2–5 חדרים', 'דירות גן עם גינה פרטית', 'דירות גג דו-מפלסיות עם מרפסת גג', 'חניון תת-קרקעי, 25 מקומות'],
     images: [
       { src: `${IMG}/widok12-apartment-card.webp`, alt: 'LAVAN WIDOK 12 – כרטיס דירה 16: 2 חדרים, 59.21 מ"ר עם מרפסת ואנטרסולה', w: 1536, h: 1024 },
     ],
@@ -259,7 +273,7 @@ export default function LavanPolandPage() {
             </h1>
             <span className="lv-rule mt-6" aria-hidden="true" />
             <p className="mt-6 max-w-2xl text-base sm:text-lg font-light leading-relaxed text-white/85">
-              LAVAN PL מאתרת, משביחה ובונה פרויקטים למגורים ולמסחר בקטוביץ, בגליביצה ובזברז&apos;ה, ומנהלת אותם
+              LAVAN PL מאתרת, משביחה ובונה פרויקטים למגורים ולמסחר בקטוביץ, בגליביצה, בזברז&apos;ה ובז&apos;ורי, ומנהלת אותם
               עבור המשקיעים. חברה אחת אחראית על כל שלבי הפרויקט.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
@@ -268,10 +282,10 @@ export default function LavanPolandPage() {
             </div>
             <dl className="mt-12 grid grid-cols-2 sm:grid-cols-4 border-t border-white/20">
               {[
-                { v: '4', l: 'פרויקטים' },
-                { v: '94', l: 'יחידות דיור' },
-                { v: '2', l: 'פרויקטים שאוכלסו' },
-                { v: '3', l: 'ערים בשלזיה' },
+                { v: '5', l: 'פרויקטים' },
+                { v: '103', l: 'יחידות דיור' },
+                { v: '3', l: 'פרויקטים שהושלמו' },
+                { v: '4', l: 'ערים בשלזיה' },
               ].map((s) => (
                 <div key={s.l} className="pt-6 pe-4">
                   <dd className="lv-serif text-3xl sm:text-4xl text-white">{s.v}</dd>

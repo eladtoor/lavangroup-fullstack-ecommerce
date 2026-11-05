@@ -59,7 +59,8 @@ const POLAND_PROJECTS = [
   { id: 'kato', name: 'LAVAN KATO', text: 'מלון דירות מניב · קטוביץ' },
   { id: 'widok12', name: 'LAVAN WIDOK 12', text: 'מגורים בוטיק · קטוביץ' },
   { id: 'gliwice', name: 'LAVAN GLIWICE', text: '24 דירות · הושלם ואוכלס' },
-  { id: 'zabrze', name: 'Roosevelta 22 – LAVAN', text: '24 דירות · הושלם ואוכלס' },
+  { id: 'zabrze', name: 'Roosevelta 22 – LAVAN', text: '33 יחידות דיור · הושלם ואוכלס' },
+  { id: 'zory', name: 'Bankowa 4 – LAVAN', text: 'מבנה בנק · נרכש, הושבח ונמכר' },
 ];
 
 const GERMANY_SERVICES = [
