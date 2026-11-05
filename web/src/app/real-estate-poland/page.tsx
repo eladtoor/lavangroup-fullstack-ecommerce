@@ -45,7 +45,7 @@ const CONTENT: RealEstateLandingContent = {
     { name: 'LAVAN WIDOK 12', meta: 'קטוביץ · 20 יחידות דיור, כולל דירות לפיצול', status: 'בשיווק · מסירה 05.2028', img: { src: `${PL}/widok12-apartment-card.webp`, alt: 'LAVAN WIDOK 12 – כרטיס דירה', w: 1536, h: 1024 }, href: '/lavan-group/poland#widok12' },
     { name: 'LAVAN GLIWICE', meta: 'גליביצה · 24 דירות', status: 'הושלם ואוכלס', img: { src: `${PL}/gliwice-render-1.webp`, alt: 'LAVAN GLIWICE', w: 1176, h: 713 }, href: '/lavan-group/poland#gliwice' },
     { name: 'Roosevelta 22 – LAVAN', meta: 'זברז׳ה · 33 יחידות דיור', status: 'הושלם ואוכלס', img: { src: `${PL}/zabrze-photo.webp`, alt: 'Roosevelta 22, זברז׳ה', w: 1400, h: 790 }, href: '/lavan-group/poland#zabrze' },
-    { name: 'Bankowa 4 – LAVAN', meta: 'ז׳ורי · מבנה בנק לשעבר', status: 'נרכש, הושבח ונמכר', img: { src: `${PL}/zory-bankowa-4-render.webp`, alt: 'Bankowa 4, ז׳ורי', w: 1394, h: 768 }, href: '/lavan-group/poland#zory' },
+    { name: 'ING Bankowa', meta: 'ז׳ורי · מבנה בנק לשעבר', status: 'נרכש, הושבח ונמכר', img: { src: `${PL}/zory-bankowa-4-render.webp`, alt: 'ING Bankowa, ז׳ורי – הדמיית תכנון', w: 1394, h: 768 }, href: '/lavan-group/poland#zory' },
   ],
   projectsLink: { href: '/lavan-group/poland', label: 'כל הפרטים על הפרויקטים' },
   faq: [

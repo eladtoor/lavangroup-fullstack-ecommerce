@@ -25,7 +25,7 @@ export default function GTranslateScript() {
           new window.google.translate.TranslateElement(
             {
               pageLanguage: 'iw', // Use 'iw' instead of 'he' for Hebrew
-              includedLanguages: 'iw,en,ru,ar',
+              includedLanguages: 'iw,en,pl,ru,ar',
               layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE,
               autoDisplay: false,
               multilanguagePage: true,
