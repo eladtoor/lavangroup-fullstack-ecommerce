@@ -39,9 +39,9 @@ const CONTENT: RealEstateLandingContent = {
   projects: [
     {
       name: 'בניין דירות – 110 יחידות דיור',
-      meta: 'גרמניה · LAVAN De GmbH',
+      meta: 'אלטנבורג (Altenburg) · LAVAN De GmbH',
       status: 'בשיווק',
-      img: { src: '/images/lavan-group/germany/germany-110-units.webp', alt: 'בניין דירות של LAVAN De GmbH בגרמניה – 110 יחידות דיור', w: 1146, h: 269 },
+      img: { src: '/images/lavan-group/germany/germany-110-units.webp', alt: 'בניין דירות של LAVAN De GmbH באלטנבורג, גרמניה – 110 יחידות דיור', w: 1146, h: 269 },
       href: '#lead',
     },
   ],

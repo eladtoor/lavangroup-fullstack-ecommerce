@@ -47,7 +47,7 @@ const URBAN_VIEW: Img[] = [
 
 const GERMANY_BUILDING: Img = {
   src: '/images/lavan-group/germany/germany-110-units.webp',
-  alt: 'בניין דירות של LAVAN De GmbH בגרמניה – 110 יחידות דיור',
+  alt: 'בניין דירות של LAVAN De GmbH באלטנבורג, גרמניה – 110 יחידות דיור',
   w: 1146,
   h: 269,
 };
@@ -235,14 +235,15 @@ export default function LavanGroupPage() {
                 <p className="text-[var(--lv-muted)] font-light leading-relaxed">
                   משרדים להשקעה עם שטחים משותפים במגדלי הארבעה היוקרתיים בתל אביב. הפרויקט בוצע באמצעות חברת הקבוצה, קידמה השקעות נדל״ן בע״מ.
                 </p>
+                <p className="text-[var(--lv-ink)] font-medium">משרדים להשקעה ולשימוש אישי, עם גישה ל:</p>
                 <div className="flex flex-wrap gap-2">
                   <span className="lv-chip">הושלם ואוכלס</span>
                   <span className="lv-chip">קידמה השקעות נדל״ן בע״מ</span>
                 </div>
                 <Bullets items={[
                   'טרקלין עסקים בקומה 14, עם מרפסת ונוף פנורמי לתל אביב ולגוש דן',
-                  'מסעדה, בית קפה ובר בתוך הטרקלין',
-                  'חדרי ישיבות ופינות ישיבה למפגשים עסקיים',
+                  'מסעדה, בית קפה ובר',
+                  'חדרי ישיבות ופינות ישיבה',
                 ]} />
               </div>
             </div>
@@ -301,7 +302,7 @@ export default function LavanGroupPage() {
           <Photo img={GERMANY_BUILDING} className="aspect-[1146/269] min-h-[200px]" />
           <div className="p-6 sm:p-8 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-sm text-[var(--lv-muted)]">גרמניה · LAVAN De GmbH</p>
+              <p className="text-sm text-[var(--lv-muted)]">אלטנבורג, גרמניה · LAVAN De GmbH</p>
               <h3 className="lv-serif mt-1 text-2xl text-[var(--lv-ink)]">בניין דירות – 110 יחידות דיור</h3>
             </div>
             <div className="flex flex-wrap items-center gap-3">
