@@ -69,16 +69,21 @@ export default function ProductDetails({
   }, [product.materialGroup]);
 
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
+  // Products sold only in fixed packs (e.g. קלסימו X in packs of 4, gypsum boards) list the allowed
+  // pack sizes in `quantities`. Preselect the smallest pack so the customer can add to cart immediately.
+  const packSizes = useMemo(
+    () => (product.quantities || []).filter((q) => Number(q) > 0).map(Number).sort((a, b) => a - b),
+    [product.quantities]
+  );
+  const isPackProduct = packSizes.length > 0;
   const [selectedQuantity, setSelectedQuantity] = useState<number | null>(
-    product.quantities && product.quantities.length > 0 ? null : 1
+    isPackProduct ? packSizes[0] : 1
   );
   const [updatedPrice, setUpdatedPrice] = useState(product['מחיר רגיל'] || 0);
-  const [totalPrice, setTotalPrice] = useState(product['מחיר רגיל'] || 0);
+  const [totalPrice, setTotalPrice] = useState((product['מחיר רגיל'] || 0) * (selectedQuantity || 1));
   const [originalPrice, setOriginalPrice] = useState(product['מחיר רגיל'] || 0);
   const [hasDiscount, setHasDiscount] = useState(false);
-  const [disableAddToCart, setDisableAddToCart] = useState(
-    Boolean(product.quantities && product.quantities.length > 0)
-  );
+  const [disableAddToCart, setDisableAddToCart] = useState(false);
   const [discountPercentage, setDiscountPercentage] = useState(0);
   const [craneUnload, setCraneUnload] = useState<boolean | null>(null);
   const [comment, setComment] = useState('');
@@ -170,7 +175,7 @@ export default function ProductDetails({
       setSelectedAttributes(defaultAttributes);
       calculateTotalPrice(defaultAttributes, selectedQuantity);
     } else {
-      calculateTotalPrice({}, 1);
+      calculateTotalPrice({}, selectedQuantity);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product]);
@@ -460,7 +465,9 @@ export default function ProductDetails({
                     </span>
                   </div>
                   <p className="text-sm text-gray-600">
-                    {selectedQuantity ? `עבור ${selectedQuantity} יחידות` : 'ליחידה'}
+                    {isPackProduct && selectedQuantity
+                      ? `לאריזה של ${selectedQuantity} יח' (₪${(totalPrice / selectedQuantity).toFixed(2)} ליחידה)`
+                      : 'ליחידה'}
                   </p>
                 </div>
               ) : (
@@ -469,7 +476,9 @@ export default function ProductDetails({
                     ₪{totalPrice.toFixed(2)}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    {selectedQuantity ? `עבור ${selectedQuantity} יחידות` : 'ליחידה'}
+                    {isPackProduct && selectedQuantity
+                      ? `לאריזה של ${selectedQuantity} יח' (₪${(totalPrice / selectedQuantity).toFixed(2)} ליחידה)`
+                      : 'ליחידה'}
                   </p>
                 </div>
               )}
@@ -494,19 +503,22 @@ export default function ProductDetails({
                 )}
 
                 {/* Quantity */}
-                {product.quantities && product.quantities.length > 0 && (
+                {isPackProduct && (
                   <div className={mode === 'modal' ? 'mt-3 sm:mt-4 text-center' : ''}>
-                    <h3 className={mode === 'modal' ? 'font-semibold text-gray-800' : 'font-semibold text-gray-900 mb-3'}>
-                      בחר כמות:
+                    <h3 className={mode === 'modal' ? 'font-semibold text-gray-800' : 'font-semibold text-gray-900 mb-1'}>
+                      {packSizes.length > 1 ? 'בחר גודל אריזה:' : 'גודל אריזה:'}
                     </h3>
+                    <p className={mode === 'modal' ? 'text-xs text-gray-500 mb-1' : 'text-sm text-gray-500 mb-3'}>
+                      מוצר זה נמכר באריזות בלבד
+                    </p>
                     <div className={mode === 'modal' ? 'flex gap-2 mt-2 flex-wrap justify-center' : 'flex gap-2 flex-wrap'}>
-                      {product.quantities.map((quantity) => (
+                      {packSizes.map((quantity) => (
                         <label
                           key={quantity}
-                          className={`px-4 py-2 border rounded-lg cursor-pointer transition-all ${
+                          className={`px-4 py-2 border-2 rounded-lg cursor-pointer transition-all font-semibold ${
                             selectedQuantity === quantity
-                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                              : 'bg-white hover:bg-gray-50 border-gray-300 hover:border-blue-400'
+                              ? 'bg-orange-50 text-orange-700 border-orange-500 shadow-sm'
+                              : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-300 hover:border-orange-400'
                           }`}
                         >
                           <input
@@ -517,7 +529,7 @@ export default function ProductDetails({
                             onChange={() => handleQuantityChange(quantity)}
                             className="hidden"
                           />
-                          {quantity}
+                          {quantity} יח'
                         </label>
                       ))}
                     </div>

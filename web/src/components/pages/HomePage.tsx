@@ -191,15 +191,15 @@ export default function HomePage() {
 
       {/* Floating Quick Cart Button */}
       {user && (
-        <div className="fixed bottom-24 right-5 flex flex-col items-center gap-4 z-50">
+        <div className="fixed bottom-20 left-4 flex flex-col items-center gap-4 z-50">
           <button
-            className="bg-gradient-to-br from-green-500 to-emerald-600 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-2xl cursor-pointer hover:scale-110 hover:shadow-green-500/50 transition-all duration-300"
+            className="bg-gradient-to-br from-green-500 to-emerald-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-2xl cursor-pointer hover:scale-110 hover:shadow-green-500/50 transition-all duration-300"
             style={{ willChange: "transform" }}
             onClick={() => setIsQuickCartOpen(true)}
             title="פתח עגלה מהירה - הוסף מוצרים בקלות"
             aria-label="פתח את העגלה המהירה"
           >
-            <FiShoppingCart size={32} />
+            <FiShoppingCart size={26} />
           </button>
         </div>
       )}

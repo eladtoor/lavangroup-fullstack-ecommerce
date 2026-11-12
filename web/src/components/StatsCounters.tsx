@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Smile, Truck, Users, Clock } from 'lucide-react';
+import { Smile, Truck } from 'lucide-react';
 
 interface CounterProps {
   end: number;
@@ -88,88 +88,56 @@ const Counter: React.FC<CounterProps> = ({ end, label, Icon, gradient, iconColor
   );
 };
 
-interface SiteStats {
-  clients: number;
-  supplyPoints: number;
-  onlineUsers: number;
-  lastOrderMinutes: number;
-}
+// Figures are edited in the admin panel (/api/site-stats). The defaults below are the current
+// approved values and render immediately, so the count-up never waits on a cold API call.
+// Only these two figures are shown on the site ("online now" / "minutes since last order" were removed 2026-11-12).
+const DEFAULT_STATS = {
+  clients: 286,
+  supplyPoints: 346,
+};
 
 interface StatsCountersProps {
   children?: React.ReactNode;
 }
 
 export default function StatsCounters({ children }: StatsCountersProps) {
-  const [stats, setStats] = useState<SiteStats | null>(null);
+  const [stats, setStats] = useState(DEFAULT_STATS);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/site-stats`);
-        const data = await response.json();
-        setStats(data);
-      } catch (error) {
-        console.error('Error fetching site stats:', error);
-      }
+    let cancelled = false;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/site-stats`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        const clients = Number(data.clients);
+        const supplyPoints = Number(data.supplyPoints);
+        if (clients > 0 && supplyPoints > 0) setStats({ clients, supplyPoints });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
     };
-
-    fetchStats();
   }, []);
 
-  // Reserve space to prevent CLS - show skeleton with same dimensions as final content
-  if (!stats) {
-    return (
-      <div className="relative overflow-hidden rounded-3xl min-h-[400px]">
-        {/* Match the gradient background structure */}
-        <div className="absolute inset-0 bg-gradient-to-r from-red-200 via-white via-green-200 to-red-200" />
-        <div className="absolute inset-0 bg-white/10 backdrop-blur-[1px]" />
-        
-        <div className="relative py-12 px-6 md:px-12">
-          <div className="flex items-center justify-center">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 max-w-5xl mx-auto w-full">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-gray-200 rounded-2xl h-36" />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const statsConfig = [
-    { 
-      end: stats.clients, 
-      label: "לקוחות מרוצים", 
+    {
+      end: stats.clients,
+      label: "לקוחות מרוצים",
       Icon: Smile,
       gradient: "bg-gradient-to-br from-amber-400 to-orange-500",
       iconColor: "text-white"
     },
-    { 
-      end: stats.supplyPoints, 
-      label: "נקודות אספקה", 
+    {
+      end: stats.supplyPoints,
+      label: "נקודות אספקה",
       Icon: Truck,
       gradient: "bg-gradient-to-br from-emerald-400 to-teal-500",
-      iconColor: "text-white"
-    },
-    { 
-      end: stats.onlineUsers, 
-      label: "מחוברים כרגע", 
-      Icon: Users,
-      gradient: "bg-gradient-to-br from-blue-400 to-indigo-500",
-      iconColor: "text-white"
-    },
-    { 
-      end: stats.lastOrderMinutes, 
-      label: "דקות מההזמנה האחרונה", 
-      Icon: Clock,
-      gradient: "bg-gradient-to-br from-rose-400 to-pink-500",
       iconColor: "text-white"
     },
   ];
 
   return (
-    <div className="relative overflow-hidden rounded-3xl min-h-[400px]">
+    <div className="relative overflow-hidden rounded-3xl ">
       {/* Static gradient background - animations disabled on mobile for performance */}
       <div className="absolute inset-0 bg-gradient-to-r from-red-200 via-white via-green-200 to-red-200 md:animate-gradient-shift md:bg-[length:300%_300%]" />
 
@@ -195,7 +163,7 @@ export default function StatsCounters({ children }: StatsCountersProps) {
         )}
         
         {/* Stats grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 max-w-5xl mx-auto">
+        <div className="grid grid-cols-2 gap-4 md:gap-6 max-w-2xl mx-auto">
           {statsConfig.map((stat, index) => (
             <Counter key={index} {...stat} />
           ))}

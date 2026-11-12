@@ -229,6 +229,9 @@ export default function CategoryContent() {
         )}
       </header>
 
+      {/* Hide the products block when the category only groups subcategories (no direct products),
+          otherwise the page showed "no products" right under a full list of subcategories. */}
+      {(productsLoading || products.length > 0 || isDigitalCatalogCategory || subCategories.length === 0) && (
       <section aria-label="מוצרים מקטגוריה זו" className="mt-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-6 border-b-2 border-gray-300 pb-2 inline-block">
           מוצרים מקטגוריה זו
@@ -250,10 +253,12 @@ export default function CategoryContent() {
           </div>
         ) : (
           <p className="text-lg text-gray-600 mt-4">
-            לא נמצאו מוצרים או תתי קטגוריות בקטגוריה זו.
+            לא נמצאו מוצרים בקטגוריה זו. לזמינות והצעת מחיר –{' '}
+            <Link href="/contact" className="text-primary font-semibold hover:underline">פנו לייעוץ טכני</Link>.
           </p>
         )}
       </section>
+      )}
 
       {/* Remaining SEO Content - At the bottom */}
       {seoText?.seoContent && seoText.seoContent.split('\n\n').length > 1 && (

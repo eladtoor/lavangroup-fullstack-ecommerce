@@ -262,7 +262,7 @@ export default function NavBar() {
             <Link
               href="/lavan-group"
               title="LAVAN Group – הקבוצה"
-              className="px-4 py-2 text-white hover:bg-gray-700 rounded transition-colors whitespace-nowrap font-semibold"
+              className="px-4 py-2 text-white bg-orange-600 hover:bg-orange-700 rounded transition-colors whitespace-nowrap font-semibold"
             >
               LAVAN Group
             </Link>
@@ -343,7 +343,7 @@ export default function NavBar() {
               <Link
                 href="/lavan-group"
                 title="LAVAN Group – הקבוצה"
-                className="text-gray-900 font-bold bg-gray-100 border-b border-white py-3 px-4 text-center hover:bg-blue-900 hover:text-white transition-colors duration-300"
+                className="text-white font-bold bg-orange-600 border-b border-white py-3 px-4 text-center hover:bg-orange-700 transition-colors duration-300"
                 onClick={toggleMenu}
               >
                 LAVAN Group

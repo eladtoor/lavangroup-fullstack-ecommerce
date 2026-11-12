@@ -38,7 +38,7 @@ export default function FloatingWhatsAppButton() {
       rel="noopener noreferrer"
       title="צור קשר עם לבן גרופ בוואטסאפ - שירות מהיר ואישי"
       aria-label="פתח שיחת וואטסאפ עם לבן גרופ"
-      className="fixed bottom-5 right-5 bg-green-500 text-white w-16 h-16 rounded-full flex items-center justify-center text-4xl shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl z-50"
+      className="fixed bottom-4 left-4 bg-green-500 text-white w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl z-50"
     >
       <i className="fab fa-whatsapp"></i>
     </a>

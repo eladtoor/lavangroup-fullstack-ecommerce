@@ -22,7 +22,7 @@ export default function AccessibilityWidget() {
     // Configure VEE accessibility widget
     window.args = {
       sitekey: "cffac76baf66d7c497f64b426be12252",
-      position: "Right",
+      position: "Left",
       language: "HE",
       container: "",
       icon: "",
@@ -53,8 +53,8 @@ export default function AccessibilityWidget() {
         hide_mobile: false,
         button_size_tablet: 44,
         button_size_mobile: 34,
-        position_tablet: "Right",
-        position_mobile: "Right",
+        position_tablet: "Left",
+        position_mobile: "Left",
         icon_vertical_position_tablet: "top",
         icon_vertical_position_mobile: "top",
         icon_offset_top_tablet: 100,
