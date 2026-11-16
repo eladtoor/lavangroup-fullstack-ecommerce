@@ -54,6 +54,18 @@ function Block({ b }: { b: ArticleBlock }) {
           {b.text}
         </p>
       );
+    case 'product':
+      return (
+        <Link href={b.href} className="my-6 flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-primary hover:shadow-md">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={b.image} alt={b.name} width={96} height={96} loading="lazy" className="h-24 w-24 shrink-0 rounded-lg object-contain bg-white" />
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className="text-lg font-bold text-gray-900">{b.name}</span>
+            <span className="text-sm text-gray-600 leading-relaxed">{b.text}</span>
+            <span className="mt-1 font-semibold text-primary">לפרטים ולהזמנה באתר ←</span>
+          </span>
+        </Link>
+      );
     default:
       return <p className="my-4 text-gray-800 text-lg leading-relaxed">{b.text}</p>;
   }
@@ -65,7 +77,8 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lavangroup.co.il';
   const url = `${baseUrl}/articles/${a.slug}`;
-  const related = ARTICLES.filter((x) => x.slug !== a.slug).slice(0, 3);
+  const others = ARTICLES.filter((x) => x.slug !== a.slug);
+  const related = [...others.filter((x) => x.category === a.category), ...others.filter((x) => x.category !== a.category)].slice(0, 3);
   const waText = encodeURIComponent(`שלום, קראתי את המדריך "${a.title}" באתר ואשמח להצעת מחיר`);
 
   const jsonLd = [
