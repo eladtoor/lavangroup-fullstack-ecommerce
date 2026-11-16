@@ -135,7 +135,7 @@ export const handleAttributeChange = (
 export const handleAttributeValueChange = (
   attrIndex: number,
   valueIndex: number,
-  field: 'value' | 'price',
+  field: 'value' | 'price' | 'salePrice',
   value: string,
   setNewProduct: React.Dispatch<React.SetStateAction<any>>
 ) => {

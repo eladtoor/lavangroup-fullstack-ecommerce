@@ -49,8 +49,9 @@ const parseAttributesFromDescription = (description) => {
  * Calculate expected price for a product with variations and user discount
  */
 const calculateExpectedPrice = (product, selectedAttributes, userProductDiscount) => {
-  // Base price (sale price takes priority)
-  let price = product["מחיר מבצע"] || product["מחיר רגיל"] || 0;
+  // Base price (sale price takes priority). Mirrors web/src/lib/utils/pricing.ts.
+  const pos = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : 0);
+  let price = pos(product["מחיר מבצע"]) || pos(product["מחיר רגיל"]);
 
   // Add variation attribute prices
   if (product.variations && product.variations.length > 0 && Object.keys(selectedAttributes).length > 0) {
@@ -59,8 +60,9 @@ const calculateExpectedPrice = (product, selectedAttributes, userProductDiscount
         Object.entries(variation.attributes).forEach(([attrName, attrData]) => {
           // Check if this attribute was selected
           const selectedValue = selectedAttributes[attrName];
-          if (selectedValue && attrData && attrData.value === selectedValue && attrData.price) {
-            price += Number(attrData.price) || 0;
+          if (selectedValue && attrData && attrData.value === selectedValue) {
+            // Variation sale price takes priority over its regular price.
+            price += pos(attrData.salePrice) || pos(attrData.price);
           }
         });
       }

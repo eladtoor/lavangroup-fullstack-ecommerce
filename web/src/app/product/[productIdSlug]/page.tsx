@@ -13,6 +13,7 @@ import {
   slugifyProductName,
 } from '@/lib/product-slug';
 import { buildCategoryUrl } from '@/lib/category-slugs';
+import { baseEffective } from '@/lib/utils/pricing';
 
 type Props = {
   params: { productIdSlug: string };
@@ -49,7 +50,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       'Gypsum and Tracks': 'גבס ומסלולים',
     };
     const categoryText = product.materialGroup ? materialGroupHebrew[product.materialGroup] || 'חומרי בניין' : 'חומרי בניין';
-    const priceText = product['מחיר רגיל'] ? ` מחיר: ₪${product['מחיר רגיל']}.` : '';
+    const priceText = baseEffective(product) ? ` מחיר: ₪${baseEffective(product)}.` : '';
 
     const description =
       product['תיאור קצר'] ||
@@ -193,7 +194,7 @@ export default async function ProductPage({ params }: Props) {
       <StructuredData data={breadcrumbJsonLd} />
       <ProductSchema
         product={product}
-        finalPrice={product['מחיר רגיל']}
+        finalPrice={baseEffective(product) || product['מחיר רגיל']}
         availability="InStock"
         url={`${baseUrl}${canonicalPath}`}
       />
