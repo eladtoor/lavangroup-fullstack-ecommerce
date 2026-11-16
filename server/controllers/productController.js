@@ -159,7 +159,93 @@ const escapeRegex = (string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
+
+// ---------------------------------------------------------------------------
+// Bulk price update (admin "Excel" tab).
+// Body: { changes: [{ id, expected: { regular, sale, variations }, regular?, sale?, variations?: [{ index, attr, price }] }] }
+//  - regular / sale: number = set, null = remove (sale only), undefined = leave as is.
+//  - expected: the values the admin saw in the preview. If the product changed in the
+//    meantime, that product is skipped and reported, so a stale file never overwrites
+//    a newer edit.
+// Only price fields are touched. One bulkWrite, one cache invalidation, one push.
+// ---------------------------------------------------------------------------
+const MAX_PRICE = 1000000;
+const isPrice = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= MAX_PRICE;
+const toNum = (v) => (v === undefined || v === null || v === "" ? null : Number(v));
+const same = (a, b) => (a === null && b === null) || (a !== null && b !== null && Math.abs(a - b) < 0.005);
+
+const bulkUpdatePrices = async (req, res) => {
+  try {
+    const changes = Array.isArray(req.body?.changes) ? req.body.changes : null;
+    if (!changes || changes.length === 0) return res.status(400).json({ error: "no changes" });
+    if (changes.length > 2000) return res.status(400).json({ error: "too many changes" });
+
+    const ids = changes.map((c) => String(c?.id || ""));
+    if (ids.some((id) => !/^[a-f0-9]{24}$/i.test(id))) return res.status(400).json({ error: "invalid product id" });
+
+    const docs = await Product.find({ _id: { $in: ids } }, { שם: 1, "מחיר רגיל": 1, "מחיר מבצע": 1, variations: 1 }).lean();
+    const byId = new Map(docs.map((d) => [String(d._id), d]));
+
+    const ops = [];
+    const skipped = [];
+    for (const c of changes) {
+      const doc = byId.get(String(c.id));
+      if (!doc) { skipped.push({ id: c.id, reason: "המוצר לא נמצא" }); continue; }
+      const exp = c.expected || {};
+      const set = {};
+      const unset = {};
+
+      if (c.regular !== undefined) {
+        if (!isPrice(c.regular)) { skipped.push({ id: c.id, name: doc.שם, reason: "מחיר רגיל לא תקין" }); continue; }
+        if (!same(toNum(doc["מחיר רגיל"]), toNum(exp.regular))) { skipped.push({ id: c.id, name: doc.שם, reason: "המחיר השתנה מאז הייצוא" }); continue; }
+        set["מחיר רגיל"] = c.regular;
+      }
+      if (c.sale !== undefined) {
+        if (c.sale !== null && !isPrice(c.sale)) { skipped.push({ id: c.id, name: doc.שם, reason: "מחיר מבצע לא תקין" }); continue; }
+        if (!same(toNum(doc["מחיר מבצע"]), toNum(exp.sale))) { skipped.push({ id: c.id, name: doc.שם, reason: "מחיר המבצע השתנה מאז הייצוא" }); continue; }
+        if (c.sale === null) unset["מחיר מבצע"] = ""; else set["מחיר מבצע"] = c.sale;
+      }
+
+      if (Array.isArray(c.variations) && c.variations.length) {
+        const variations = JSON.parse(JSON.stringify(doc.variations || []));
+        let bad = null;
+        for (const v of c.variations) {
+          const target = variations[v.index];
+          const attr = target && target.attributes && target.attributes[v.attr];
+          if (!attr || typeof attr !== "object") { bad = "וריאציה לא נמצאה"; break; }
+          if (!isPrice(v.price)) { bad = "מחיר וריאציה לא תקין"; break; }
+          const expected = exp.variations && exp.variations[`${v.index}|${v.attr}`];
+          if (!same(toNum(attr.price), toNum(expected))) { bad = "מחיר הווריאציה השתנה מאז הייצוא"; break; }
+          attr.price = v.price;
+        }
+        if (bad) { skipped.push({ id: c.id, name: doc.שם, reason: bad }); continue; }
+        set.variations = variations;
+      }
+
+      if (!Object.keys(set).length && !Object.keys(unset).length) continue;
+      const update = {};
+      if (Object.keys(set).length) update.$set = set;
+      if (Object.keys(unset).length) update.$unset = unset;
+      ops.push({ updateOne: { filter: { _id: doc._id }, update } });
+    }
+
+    let updated = 0;
+    if (ops.length) {
+      const r = await Product.bulkWrite(ops, { ordered: false });
+      updated = r.modifiedCount || 0;
+      invalidateProductCaches();
+      notifyProductChange(); // full-list push
+    }
+    console.log(`[BULK-PRICES] requested=${changes.length} updated=${updated} skipped=${skipped.length} by=${req.user?.uid || "?"}`);
+    res.json({ updated, skipped });
+  } catch (error) {
+    console.error("[REQ-ERR] bulkUpdatePrices:", error);
+    res.status(500).json({ error: "bulk update failed" });
+  }
+};
+
 module.exports = {
+  bulkUpdatePrices,
   createProduct,
   getProduct,
   updateProduct,

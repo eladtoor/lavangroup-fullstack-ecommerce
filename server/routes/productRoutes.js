@@ -11,6 +11,7 @@ router.get("/:id", productController.getProduct);
 
 // Admin-only routes (protected)
 router.post("/create", adminOnly, productController.createProduct);
+router.post("/bulk-prices", adminOnly, productController.bulkUpdatePrices);
 router.put("/update/:id", adminOnly, productController.updateProduct);
 router.delete("/delete/:id", adminOnly, productController.deleteProduct);
 
