@@ -24,6 +24,7 @@
     "cors": "^2.8.5",
     "cssnano": "^7.1.2",
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "firebase": "^11.10.0",
     "firebase-admin": "^13.6.0",

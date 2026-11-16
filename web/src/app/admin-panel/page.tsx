@@ -8,6 +8,7 @@ import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 import CategoryImageManager from '@/components/CategoryImageManager';
 import CategorySeoTextManager from '@/components/CategorySeoTextManager';
 import LeadsManager from '@/components/LeadsManager';
+import BulkPriceManager from '@/components/BulkPriceManager';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import { adminPut } from '@/utils/adminApi';
 import {
@@ -542,10 +543,19 @@ function AdminPanelContent() {
           >
             פניות
           </button>
+          <button
+            onClick={() => setActiveTab('prices')}
+            className={`px-4 py-2 rounded ${activeTab === 'prices' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          >
+            עדכון מחירים (Excel)
+          </button>
         </nav>
 
         {/* Leads Tab */}
         {activeTab === 'leads' && <LeadsManager />}
+
+        {/* Bulk price update via Excel */}
+        {activeTab === 'prices' && <BulkPriceManager />}
 
         {/* Products Tab */}
         {activeTab === 'products' && (
