@@ -255,6 +255,8 @@ function AdminPanelContent() {
           attributes[attributeNames[i]] = {
             value: valueObj.value,
             price: valueObj.price,
+            // Optional variation sale price; omitted when empty or 0.
+            ...(Number(valueObj.salePrice) > 0 ? { salePrice: Number(valueObj.salePrice) } : {}),
           };
           totalPrice += Number(valueObj.price);
         });
@@ -322,7 +324,7 @@ function AdminPanelContent() {
     // DB stores: variations: [{ attributes: { "AttrName": { value: "X", price: 100 } } }]
     // Form expects: attributes: [{ name: "AttrName", values: [{ value: "X", price: 100 }] }]
     if (productToEdit.סוג === 'variable' && productToEdit.variations && productToEdit.variations.length > 0) {
-      const attributesMap: Record<string, { value: string; price: string }[]> = {};
+      const attributesMap: Record<string, { value: string; price: string; salePrice: string }[]> = {};
       
       productToEdit.variations.forEach((variation: any) => {
         if (variation.attributes && typeof variation.attributes === 'object') {
@@ -338,6 +340,7 @@ function AdminPanelContent() {
               attributesMap[attrName].push({
                 value: attrData.value || '',
                 price: String(attrData.price || ''),
+                salePrice: String(attrData.salePrice || ''),
               });
             }
           });
@@ -720,6 +723,26 @@ function AdminPanelContent() {
                                     required
                                     className="w-full border p-2 rounded"
                                     placeholder="מחיר"
+                                  />
+                                </div>
+                                <div className="flex-1">
+                                  <label className="block text-sm font-semibold mb-1">מחיר מבצע (לא חובה):</label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={valueObj.salePrice || ''}
+                                    onChange={(e) =>
+                                      handleAttributeValueChange(
+                                        attrIndex,
+                                        valueIndex,
+                                        'salePrice',
+                                        e.target.value,
+                                        setNewProduct
+                                      )
+                                    }
+                                    className="w-full border p-2 rounded"
+                                    placeholder="ריק = בלי מבצע"
                                   />
                                 </div>
                                 {attribute.values.length > 1 && (

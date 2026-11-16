@@ -21,7 +21,7 @@ import { fetchProducts } from '@/lib/redux/actions/productActions';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-type Attr = { value?: string; price?: number | string };
+type Attr = { value?: string; price?: number | string; salePrice?: number | string };
 type Product = {
   _id: string;
   'מק"ט'?: string;
@@ -32,7 +32,7 @@ type Product = {
   variations?: { attributes?: Record<string, Attr> }[];
 };
 
-type Field = 'regular' | 'sale' | 'variation';
+type Field = 'regular' | 'sale' | 'variation' | 'variationSale';
 type Diff = {
   id: string;
   name: string;
@@ -160,11 +160,10 @@ export default function BulkPriceManager() {
               sku: p['מק"ט'] || '',
               category: p.קטגוריות || '',
               regular: num(a.price),
-              sale: null,
+              sale: num(a.salePrice),
               id: p._id,
               varKey: `${index}|${attr}`,
             });
-            row.getCell('sale').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
             row.getCell('variant').font = { color: { argb: 'FF4B5563' } };
           }
         });
@@ -187,7 +186,7 @@ export default function BulkPriceManager() {
         '',
         '1. מעדכנים רק את העמודות "מחיר רגיל" ו"מחיר מבצע" (בכתום).',
         '2. תא ריק = בלי שינוי. כדי להסיר מחיר מבצע – כותבים 0.',
-        '3. בשורות של וריאציות (גוון / גודל) המחיר נמצא ב"מחיר רגיל". לווריאציות אין מחיר מבצע (התא אפור).',
+        '3. בשורות של וריאציות (גוון / גודל) המחיר נמצא ב"מחיר רגיל", ואפשר לתת לכל וריאציה גם "מחיר מבצע" משלה (0 = הסרת המבצע).',
         '4. לא משנים ולא מוחקים את "מזהה מערכת" ו"מפתח וריאציה" – לפיהם המערכת יודעת איזה מוצר לעדכן.',
         '5. מותר למיין ולסנן, ומותר למחוק שורות שלא משנים.',
         '6. מעלים את הקובץ בפאנל. לפני השמירה מוצגת השוואה מלאה של לפני ואחרי, ושום דבר לא נשמר בלי אישור.',
@@ -261,11 +260,19 @@ export default function BulkPriceManager() {
           const attr = varKey.slice(sep + 1);
           const a = p.variations?.[index]?.attributes?.[attr];
           if (sep < 0 || !a) return void errs.push({ row: r, message: `"${p.שם}": הווריאציה לא נמצאה. הורידו קובץ חדש.` });
-          if (sale.value !== null && sale.value !== 0) errs.push({ row: r, message: `"${p.שם}" (${a.value}): לווריאציה אין מחיר מבצע – התא התעלם.` });
           const before = num(a.price);
+          const afterVarReg = reg.value === null || reg.value === 0 ? before : reg.value;
           if (reg.value !== null && reg.value !== before) {
-            if (reg.value === 0) return void errs.push({ row: r, message: `"${p.שם}" (${a.value}): מחיר 0 לווריאציה לא נשמר.` });
-            out.push({ id, name: p.שם, label: `${a.value ?? ''}`, field: 'variation', varKey, before, after: reg.value });
+            if (reg.value === 0) errs.push({ row: r, message: `"${p.שם}" (${a.value}): מחיר 0 לווריאציה לא נשמר.` });
+            else out.push({ id, name: p.שם, label: `${a.value ?? ''}`, field: 'variation', varKey, before, after: reg.value });
+          }
+          if (sale.value !== null) {
+            const beforeVarSale = num(a.salePrice);
+            const afterVarSale = sale.value === 0 ? null : sale.value;
+            if (afterVarSale !== beforeVarSale) {
+              const warning = afterVarSale !== null && afterVarReg !== null && afterVarSale >= afterVarReg ? 'מחיר המבצע לא נמוך מהמחיר הרגיל' : undefined;
+              out.push({ id, name: p.שם, label: `${a.value ?? ''}`, field: 'variationSale', varKey, before: beforeVarSale, after: afterVarSale, warning });
+            }
           }
           return;
         }
@@ -310,24 +317,39 @@ export default function BulkPriceManager() {
       const byId = new Map(products.map((p) => [p._id, p]));
       const grouped = new Map<string, {
         id: string;
-        expected: { regular: number | null; sale: number | null; variations: Record<string, number | null> };
+        expected: {
+          regular: number | null;
+          sale: number | null;
+          variations: Record<string, number | null>;
+          variationSales: Record<string, number | null>;
+        };
         regular?: number;
         sale?: number | null;
-        variations?: { index: number; attr: string; price: number }[];
+        variations?: { index: number; attr: string; price?: number; sale?: number | null }[];
       }>();
       for (const d of diffs) {
         const p = byId.get(d.id)!;
         let g = grouped.get(d.id);
         if (!g) {
-          g = { id: d.id, expected: { regular: num(p['מחיר רגיל']), sale: num(p['מחיר מבצע']), variations: {} } };
+          g = { id: d.id, expected: { regular: num(p['מחיר רגיל']), sale: num(p['מחיר מבצע']), variations: {}, variationSales: {} } };
           grouped.set(d.id, g);
         }
         if (d.field === 'regular') g.regular = d.after as number;
         else if (d.field === 'sale') g.sale = d.after;
         else if (d.varKey) {
           const sep = d.varKey.indexOf('|');
-          (g.variations ||= []).push({ index: Number(d.varKey.slice(0, sep)), attr: d.varKey.slice(sep + 1), price: d.after as number });
-          g.expected.variations[d.varKey] = d.before;
+          const index = Number(d.varKey.slice(0, sep));
+          const attr = d.varKey.slice(sep + 1);
+          const list = (g.variations ||= []);
+          let v = list.find((x) => x.index === index && x.attr === attr);
+          if (!v) list.push((v = { index, attr }));
+          if (d.field === 'variation') {
+            v.price = d.after as number;
+            g.expected.variations[d.varKey] = d.before;
+          } else {
+            v.sale = d.after;
+            g.expected.variationSales[d.varKey] = d.before;
+          }
         }
       }
       const res = await adminPost('/api/products/bulk-prices', { changes: [...grouped.values()] });
@@ -343,7 +365,8 @@ export default function BulkPriceManager() {
     }
   };
 
-  const fieldLabel = (d: Diff) => (d.field === 'sale' ? 'מחיר מבצע' : d.field === 'regular' ? 'מחיר רגיל' : 'מחיר וריאציה');
+  const fieldLabel = (d: Diff) =>
+    ({ sale: 'מחיר מבצע', regular: 'מחיר רגיל', variation: 'מחיר וריאציה', variationSale: 'מבצע לווריאציה' })[d.field];
   const warnings = diffs?.filter((d) => d.warning).length || 0;
 
   return (

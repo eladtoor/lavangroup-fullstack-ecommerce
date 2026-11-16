@@ -11,6 +11,7 @@ import {
   isValidCompanySlug,
   CANONICAL_BASE_URL,
 } from '@/lib/category-slugs';
+import { baseEffective } from '@/lib/utils/pricing';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -187,7 +188,7 @@ export default async function Page({ params }: Props) {
         offers: {
           '@type': 'Offer',
           priceCurrency: 'ILS',
-          price: product['מחיר רגיל'] || 0,
+          price: baseEffective(product),
           availability: 'https://schema.org/InStock',
         },
       },

@@ -213,10 +213,20 @@ const bulkUpdatePrices = async (req, res) => {
           const target = variations[v.index];
           const attr = target && target.attributes && target.attributes[v.attr];
           if (!attr || typeof attr !== "object") { bad = "וריאציה לא נמצאה"; break; }
-          if (!isPrice(v.price)) { bad = "מחיר וריאציה לא תקין"; break; }
-          const expected = exp.variations && exp.variations[`${v.index}|${v.attr}`];
-          if (!same(toNum(attr.price), toNum(expected))) { bad = "מחיר הווריאציה השתנה מאז הייצוא"; break; }
-          attr.price = v.price;
+          const key = `${v.index}|${v.attr}`;
+          if (v.price !== undefined) {
+            if (!isPrice(v.price)) { bad = "מחיר וריאציה לא תקין"; break; }
+            const expected = exp.variations && exp.variations[key];
+            if (!same(toNum(attr.price), toNum(expected))) { bad = "מחיר הווריאציה השתנה מאז הייצוא"; break; }
+            attr.price = v.price;
+          }
+          // Variation sale price: a number sets it, null removes it.
+          if (v.sale !== undefined) {
+            if (v.sale !== null && !isPrice(v.sale)) { bad = "מחיר מבצע לווריאציה לא תקין"; break; }
+            const expectedSale = exp.variationSales && exp.variationSales[key];
+            if (!same(toNum(attr.salePrice), toNum(expectedSale))) { bad = "מחיר המבצע של הווריאציה השתנה מאז הייצוא"; break; }
+            if (v.sale === null) delete attr.salePrice; else attr.salePrice = v.sale;
+          }
         }
         if (bad) { skipped.push({ id: c.id, name: doc.שם, reason: bad }); continue; }
         set.variations = variations;

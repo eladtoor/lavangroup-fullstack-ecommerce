@@ -10,9 +10,10 @@ import { useAppDispatch, useAppSelector } from '@/lib/redux/hooks';
 import { addToCart } from '@/lib/redux/slices/cartSlice';
 import { saveCartToFirestore } from '@/utils/cartUtils';
 import { cleanDescription } from '@/lib/utils/textUtils';
+import { attrEffective, attrRegular, baseEffective, baseRegular } from '@/lib/utils/pricing';
 
 type ProductVariation = {
-  attributes: Record<string, { value: string; price: number }>;
+  attributes: Record<string, { value: string; price: number; salePrice?: number }>;
 };
 
 export type Product = {
@@ -22,6 +23,7 @@ export type Product = {
   תיאור?: string;
   תמונות?: string;
   'מחיר רגיל': number;
+  'מחיר מבצע'?: number;
   'מק"ט'?: string;
   סוג: 'simple' | 'variable';
   variations?: ProductVariation[];
@@ -79,12 +81,14 @@ export default function ProductDetails({
   const [selectedQuantity, setSelectedQuantity] = useState<number | null>(
     isPackProduct ? packSizes[0] : 1
   );
-  const [updatedPrice, setUpdatedPrice] = useState(product['מחיר רגיל'] || 0);
-  const [totalPrice, setTotalPrice] = useState((product['מחיר רגיל'] || 0) * (selectedQuantity || 1));
-  const [originalPrice, setOriginalPrice] = useState(product['מחיר רגיל'] || 0);
-  const [hasDiscount, setHasDiscount] = useState(false);
+  const [updatedPrice, setUpdatedPrice] = useState(baseEffective(product));
+  const [totalPrice, setTotalPrice] = useState(baseEffective(product) * (selectedQuantity || 1));
+  const [originalPrice, setOriginalPrice] = useState(baseRegular(product));
+  // Product has a purchasable base price (regular or sale).
+  const hasBasePrice = baseEffective(product) > 0;
+  const [, setHasDiscount] = useState(false);
   const [disableAddToCart, setDisableAddToCart] = useState(false);
-  const [discountPercentage, setDiscountPercentage] = useState(0);
+  const [, setDiscountPercentage] = useState(0);
   const [craneUnload, setCraneUnload] = useState<boolean | null>(null);
   const [comment, setComment] = useState('');
 
@@ -92,7 +96,7 @@ export default function ProductDetails({
   const hasVariationPricing = useMemo(() => {
     if (!product.variations || product.variations.length === 0) return false;
     return product.variations.some((v) =>
-      Object.values(v.attributes || {}).some((attr) => attr.price && Number(attr.price) > 0)
+      Object.values(v.attributes || {}).some((attr) => attrEffective(attr) > 0)
     );
   }, [product.variations]);
 
@@ -112,7 +116,10 @@ export default function ProductDetails({
 
   const calculateTotalPrice = (attrs: Record<string, string>, quantity: number | null) => {
     const effectiveQuantity = quantity || 1;
-    let updatedPriceTemp = product['מחיר רגיל'] || 0;
+    // listPrice = what the customer would pay without any sale (shown struck through);
+    // updatedPriceTemp = the price actually charged before the personal discount.
+    let listPrice = baseRegular(product) || baseEffective(product);
+    let updatedPriceTemp = baseEffective(product);
 
     const discountInfo = user?.productDiscounts?.find(
       (d: any) => d.productId === product._id
@@ -135,8 +142,9 @@ export default function ProductDetails({
 
         if (match) {
           for (const attribute of Object.values(attributes || {})) {
-            if (attribute && attribute.price) {
-              updatedPriceTemp += Number(attribute.price);
+            if (attribute) {
+              updatedPriceTemp += attrEffective(attribute);
+              listPrice += attrRegular(attribute) || attrEffective(attribute);
             }
           }
           break;
@@ -145,7 +153,7 @@ export default function ProductDetails({
     }
 
     const finalPrice = updatedPriceTemp - (updatedPriceTemp * discount) / 100;
-    setOriginalPrice(updatedPriceTemp);
+    setOriginalPrice(Math.max(listPrice, updatedPriceTemp));
     setUpdatedPrice(finalPrice);
     setTotalPrice(finalPrice * effectiveQuantity);
   };
@@ -291,7 +299,7 @@ export default function ProductDetails({
 
         if (match) {
           Object.entries(selectedAttributes).forEach(([key, value]) => {
-            const price = parseFloat(String(variation.attributes?.[key]?.price || 0));
+            const price = attrEffective(variation.attributes?.[key]);
             enrichedSelectedAttributes[key] = { value, price };
           });
           break;
@@ -428,7 +436,7 @@ export default function ProductDetails({
           <div className={mode === 'modal' ? '' : 'bg-white border border-gray-200 rounded-xl p-6 space-y-6'}>
             {/* Price Section */}
             <div className={mode === 'modal' ? 'mt-3 sm:mt-4 text-center' : ''}>
-              {(!product['מחיר רגיל'] || Number(product['מחיר רגיל']) === 0) && !hasVariationPricing ? (
+              {!hasBasePrice && !hasVariationPricing ? (
                 <div className="space-y-3">
                   <p className="text-xl font-semibold text-gray-800">
                     פנה אלינו להצעת מחיר
@@ -451,7 +459,7 @@ export default function ProductDetails({
                     שלח הודעה בוואצאפ
                   </a>
                 </div>
-              ) : hasDiscount ? (
+              ) : originalPrice > updatedPrice + 0.005 ? (
                 <div className="space-y-1">
                   <p className="text-lg text-gray-500 line-through">
                     ₪{(originalPrice * (selectedQuantity || 1)).toFixed(2)}
@@ -461,7 +469,7 @@ export default function ProductDetails({
                       ₪{totalPrice.toFixed(2)}
                     </p>
                     <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 px-3 py-1 text-sm font-semibold">
-                      {discountPercentage}% הנחה
+                      {Math.round((1 - updatedPrice / originalPrice) * 100)}% הנחה
                     </span>
                   </div>
                   <p className="text-sm text-gray-600">
@@ -485,7 +493,7 @@ export default function ProductDetails({
             </div>
 
             {/* Only show product options when price is not 0 or has variation pricing */}
-            {(product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 || hasVariationPricing) && (
+            {(hasBasePrice || hasVariationPricing) && (
               <>
                 {/* Divider */}
                 {(product.סוג === 'variable' || (product.quantities && product.quantities.length > 0)) && (
@@ -594,10 +602,10 @@ export default function ProductDetails({
             )}
 
             {/* Divider before button */}
-            {mode === 'page' && (product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 || hasVariationPricing) && <div className="border-t border-gray-200"></div>}
+            {mode === 'page' && (hasBasePrice || hasVariationPricing) && <div className="border-t border-gray-200"></div>}
 
             {/* Actions - Hide when price is 0 and no variation pricing */}
-            {(product['מחיר רגיל'] && Number(product['מחיר רגיל']) !== 0 || hasVariationPricing) && (
+            {(hasBasePrice || hasVariationPricing) && (
               <div className={mode === 'modal' ? 'mt-4' : ''}>
                 <button
                   onClick={handleAddToCart}
